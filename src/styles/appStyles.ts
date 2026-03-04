@@ -1,0 +1,306 @@
+import { StyleSheet, type StyleProp, type TextStyle } from "react-native";
+
+export type ThemeMode = "dark" | "light";
+
+type ThemeColors = {
+  bg: string;
+  surface: string;
+  surfaceAlt: string;
+  border: string;
+  borderStrong: string;
+  text: string;
+  muted: string;
+  subtle: string;
+  primary: string;
+  danger: string;
+  dangerSoftBg: string;
+  dangerSoftBorder: string;
+  heroBg: string;
+  heroBorder: string;
+  tabInactive: string;
+  success: string;
+  warning: string;
+  unpaid: string;
+};
+
+const dark: ThemeColors = {
+  bg: "#0d0d0f",
+  surface: "#131318",
+  surfaceAlt: "#1a1a24",
+  border: "#2535c833",
+  borderStrong: "#2b2b3a",
+  text: "#ffffff",
+  muted: "#9090aa",
+  subtle: "#44445a",
+  primary: "#2535c8",
+  danger: "#e8141c",
+  dangerSoftBg: "#2d1218",
+  dangerSoftBorder: "#5b252f",
+  heroBg: "#171728",
+  heroBorder: "#26306f",
+  tabInactive: "#44445a",
+  success: "#00c97a",
+  warning: "#ffb020",
+  unpaid: "#ff4d6a",
+};
+
+const light: ThemeColors = {
+  bg: "#f4f6fb",
+  surface: "#ffffff",
+  surfaceAlt: "#eef2fb",
+  border: "#d9deef",
+  borderStrong: "#d0d7ea",
+  text: "#111827",
+  muted: "#6b7280",
+  subtle: "#9aa3b2",
+  primary: "#2535c8",
+  danger: "#e8141c",
+  dangerSoftBg: "#fdecef",
+  dangerSoftBorder: "#f4bcc4",
+  heroBg: "#eaf0ff",
+  heroBorder: "#cfd9ff",
+  tabInactive: "#7a8499",
+  success: "#0f9f5a",
+  warning: "#cc8a00",
+  unpaid: "#d6455b",
+};
+
+export function createAppStyles(mode: ThemeMode) {
+  const c = mode === "dark" ? dark : light;
+
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: c.bg },
+    screen: { flex: 1 },
+    screenContent: { paddingBottom: 28 },
+    appBar: {
+      paddingHorizontal: 20,
+      paddingTop: 10,
+      paddingBottom: 8,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    row: { flexDirection: "row", gap: 8 },
+    brandWrap: { flexDirection: "row", alignItems: "center", gap: 10 },
+    brandLogo: { width: 34, height: 34, borderRadius: 8 },
+    title: { color: c.text, fontSize: 19, fontWeight: "700" },
+    subTitle: { color: c.muted, fontSize: 12, marginTop: 2 },
+    boxIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 11,
+      backgroundColor: c.surfaceAlt,
+      borderWidth: 1,
+      borderColor: c.borderStrong,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    boxIconRed: { backgroundColor: c.danger, borderColor: c.danger },
+    boxIconText: { color: c.muted, fontSize: 15, fontWeight: "700" },
+    boxIconTextRed: { color: "#fff" },
+    avatar: { backgroundColor: c.primary, borderColor: c.primary },
+    avatarText: { color: "white", fontSize: 11, fontWeight: "800" },
+    hero: {
+      marginHorizontal: 20,
+      marginTop: 4,
+      borderRadius: 16,
+      padding: 18,
+      backgroundColor: c.heroBg,
+      borderWidth: 1,
+      borderColor: c.heroBorder,
+    },
+    heroMuted: { color: c.muted, fontSize: 12 },
+    heroTitle: { color: c.text, fontSize: 22, fontWeight: "800", marginTop: 2 },
+    heroMeta: { color: c.subtle, fontSize: 11, marginTop: 6 },
+    sec: {
+      color: c.subtle,
+      fontSize: 11,
+      fontWeight: "700",
+      marginTop: 16,
+      marginBottom: 8,
+      letterSpacing: 0.8,
+      paddingHorizontal: 20,
+    },
+    grid2: {
+      paddingHorizontal: 20,
+      gap: 10,
+      flexDirection: "row",
+      flexWrap: "wrap",
+    },
+    statCard: {
+      width: "48.5%",
+      backgroundColor: c.surface,
+      borderColor: c.border,
+      borderWidth: 1,
+      borderRadius: 14,
+      padding: 12,
+      overflow: "hidden",
+    },
+    statTopLine: { position: "absolute", top: 0, left: 0, right: 0, height: 2 },
+    statLabel: { color: c.muted, fontSize: 10 },
+    statValue: { color: c.text, fontSize: 17, fontWeight: "800", marginTop: 6 },
+    statSub: { color: c.muted, fontSize: 10, marginTop: 4 },
+    alert: {
+      marginHorizontal: 20,
+      marginTop: 14,
+      backgroundColor: c.dangerSoftBg,
+      borderColor: c.dangerSoftBorder,
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 12,
+    },
+    alertTitle: { color: c.text, fontSize: 12, fontWeight: "700" },
+    alertSub: { color: c.muted, fontSize: 11, marginTop: 2 },
+    actions: { paddingHorizontal: 20, gap: 8 },
+    pill: {
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 18,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+    },
+    pillActive: { backgroundColor: c.dangerSoftBg, borderColor: "#e8141c66" },
+    pillText: { color: c.muted, fontSize: 12, fontWeight: "600" },
+    pillTextActive: { color: c.danger },
+    sectionTitleRow: {
+      paddingHorizontal: 20,
+      marginTop: 18,
+      marginBottom: 10,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    sectionTitle: { color: c.text, fontSize: 14, fontWeight: "700" },
+    seeAll: { color: c.primary, fontSize: 12, fontWeight: "700" },
+    card: {
+      marginHorizontal: 20,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+    listItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    itemMain: { flex: 1 },
+    itemTitle: { color: c.text, fontSize: 13, fontWeight: "700" },
+    itemSub: { color: c.muted, fontSize: 11, marginTop: 2 },
+    itemRight: { alignItems: "flex-end" },
+    amount: { color: c.text, fontSize: 14, fontWeight: "700" },
+    badgeUnpaid: {
+      marginTop: 4,
+      color: c.unpaid,
+      fontSize: 10,
+      fontWeight: "700",
+    },
+    badgePartial: {
+      marginTop: 4,
+      color: c.warning,
+      fontSize: 10,
+      fontWeight: "700",
+    },
+    badgePaid: {
+      marginTop: 4,
+      color: c.success,
+      fontSize: 10,
+      fontWeight: "700",
+    },
+    noBorder: { borderBottomWidth: 0 },
+    chip: {
+      backgroundColor: c.surface,
+      borderColor: c.border,
+      borderWidth: 1,
+      paddingVertical: 7,
+      paddingHorizontal: 14,
+      borderRadius: 20,
+    },
+    chipActive: { backgroundColor: c.danger, borderColor: c.danger },
+    chipText: { color: c.muted, fontSize: 11, fontWeight: "700" },
+    chipTextActive: { color: "#fff" },
+    back: { color: c.muted, fontSize: 13, fontWeight: "600" },
+    heroCard: {
+      marginHorizontal: 20,
+      marginTop: 6,
+      backgroundColor: c.surface,
+      borderColor: c.border,
+      borderWidth: 1,
+      borderRadius: 16,
+      padding: 16,
+    },
+    formRow: {
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      borderBottomColor: c.border,
+      borderBottomWidth: 1,
+    },
+    formLabel: { color: c.muted, fontSize: 11 },
+    formValue: { color: c.text, fontSize: 14, marginTop: 4, fontWeight: "600" },
+    cta: {
+      marginHorizontal: 20,
+      marginTop: 14,
+      backgroundColor: c.danger,
+      borderRadius: 14,
+      paddingVertical: 15,
+      alignItems: "center",
+    },
+    ctaText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+    tabBar: {
+      height: 74,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      backgroundColor: c.surface,
+      flexDirection: "row",
+      alignItems: "center",
+      paddingBottom: 8,
+    },
+    tab: { flex: 1, alignItems: "center" },
+    tabIcon: { marginBottom: 3 },
+    tabText: { color: c.tabInactive, fontSize: 10, fontWeight: "700" },
+    tabActive: { color: c.danger },
+    centerTab: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: c.danger,
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: -18,
+    },
+    themeToggle: {
+      position: "absolute",
+      right: 18,
+      bottom: 84,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      justifyContent: "center",
+      alignItems: "center",
+      elevation: 3,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+    },
+  });
+}
+
+export type AppStyles = ReturnType<typeof createAppStyles>;
+
+export function getBadgeStyle(
+  styles: AppStyles,
+  status: string,
+): StyleProp<TextStyle> {
+  if (status === "Paid") return styles.badgePaid;
+  if (status === "Partial") return styles.badgePartial;
+  return styles.badgeUnpaid;
+}
