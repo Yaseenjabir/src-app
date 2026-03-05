@@ -1,2 +1,7 @@
-export type MainTab = "dashboard" | "invoices" | "customers" | "payments";
-export type Page = MainTab | "products" | "invDetail" | "newInvoice";
+export type MainTab =
+  | "dashboard"
+  | "invoices"
+  | "customers"
+  | "products"
+  | "payments";
+export type Page = MainTab | "invDetail" | "newInvoice";

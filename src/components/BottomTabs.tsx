@@ -42,6 +42,13 @@ export function BottomTabs({
         onPress={() => onGo("customers")}
       />
       <Tab
+        label="Products"
+        icon="cube"
+        iconOutline="cube-outline"
+        active={current === "products"}
+        onPress={() => onGo("products")}
+      />
+      <Tab
         label="Payments"
         icon="card"
         iconOutline="card-outline"
