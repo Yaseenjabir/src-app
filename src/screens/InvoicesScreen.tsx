@@ -6,15 +6,24 @@ import type { Page } from "../types/navigation";
 import { useAppTheme } from "../theme/AppThemeContext";
 import type { Invoice, InvoiceStatus } from "../types/entities";
 import { customerNameFromRef, formatMoney, statusLabel } from "../utils/format";
-import { ActionPill, BoxIcon, Card, SectionTitle } from "../components/common";
+import {
+  ActionPill,
+  BoxIcon,
+  Card,
+  Loader,
+  SectionTitle,
+} from "../components/common";
+import { AppHeader } from "../components/AppHeader";
 
 type InvoiceFilterKey = "all" | InvoiceStatus;
 
 export function InvoicesScreen({
   onGo,
+  onOpenInvoice,
   refreshTick = 0,
 }: {
   onGo: (p: Page) => void;
+  onOpenInvoice: (invoiceId: string) => void;
   refreshTick?: number;
 }) {
   const { styles, badgeStyle } = useAppTheme();
@@ -84,12 +93,11 @@ export function InvoicesScreen({
 
   return (
     <>
-      <View style={styles.appBar}>
-        <Text style={styles.title}>Invoices</Text>
+      <AppHeader>
         <TouchableOpacity onPress={() => onGo("newInvoice")}>
           <BoxIcon label="＋" red />
         </TouchableOpacity>
-      </View>
+      </AppHeader>
 
       <ScrollView
         horizontal
@@ -108,11 +116,7 @@ export function InvoicesScreen({
 
       <SectionTitle title="Invoice List" />
       <Card>
-        {isLoading ? (
-          <View style={styles.listItem}>
-            <Text style={styles.itemSub}>Loading invoices...</Text>
-          </View>
-        ) : null}
+        {isLoading ? <Loader /> : null}
 
         {!isLoading && error ? (
           <View style={styles.listItem}>
@@ -135,7 +139,7 @@ export function InvoicesScreen({
                 styles.listItem,
                 idx === items.length - 1 && styles.noBorder,
               ]}
-              onPress={() => onGo("invDetail")}
+              onPress={() => onOpenInvoice(inv._id)}
             >
               <View style={styles.itemMain}>
                 <Text style={styles.itemTitle}>{inv.invoice_no}</Text>

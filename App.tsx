@@ -1,15 +1,13 @@
 import { StatusBar } from "expo-status-bar";
-import { Ionicons } from "@expo/vector-icons";
 import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   RefreshControl,
   ScrollView,
-  TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./src/auth/AuthContext";
 import { BottomTabs } from "./src/components/BottomTabs";
 import { CustomersScreen } from "./src/screens/CustomersScreen";
@@ -22,19 +20,25 @@ import { PaymentsScreen } from "./src/screens/PaymentsScreen";
 import { ProductsScreen } from "./src/screens/ProductsScreen";
 import { AppThemeProvider, useAppTheme } from "./src/theme/AppThemeContext";
 import type { Page } from "./src/types/navigation";
+import { ToastProvider } from "./src/feedback/ToastContext";
 
 export default function App() {
   return (
-    <AppThemeProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </AppThemeProvider>
+    <SafeAreaProvider>
+      <AppThemeProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </AppThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
 function AppContent() {
   const [page, setPage] = useState<Page>("dashboard");
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
+    null,
+  );
   const transition = useRef(new Animated.Value(1)).current;
   const { mode, styles, toggleMode } = useAppTheme();
   const { isBootstrapping, token, user } = useAuth();
@@ -71,90 +75,97 @@ function AppContent() {
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <StatusBar style={mode === "dark" ? "light" : "dark"} />
 
-      {isBootstrapping ? (
-        <View
-          style={{
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <ActivityIndicator size="large" color="#e8141c" />
-        </View>
-      ) : null}
-
-      {!isBootstrapping && (!token || !user) ? <LoginScreen /> : null}
-
-      {!isBootstrapping && token && user ? (
-        <>
-          <Animated.View
+      <ToastProvider>
+        {isBootstrapping ? (
+          <View
             style={{
               flex: 1,
-              opacity: transition,
-              transform: [
-                {
-                  translateY: transition.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [8, 0],
-                  }),
-                },
-              ],
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            <ScrollView
-              style={styles.screen}
-              contentContainerStyle={styles.screenContent}
-              refreshControl={
-                <RefreshControl
-                  refreshing={isRefreshing}
-                  onRefresh={handleRefresh}
-                />
-              }
+            <ActivityIndicator size="large" color="#e8141c" />
+          </View>
+        ) : null}
+
+        {!isBootstrapping && (!token || !user) ? <LoginScreen /> : null}
+
+        {!isBootstrapping && token && user ? (
+          <>
+            <Animated.View
+              style={{
+                flex: 1,
+                opacity: transition,
+                transform: [
+                  {
+                    translateY: transition.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [8, 0],
+                    }),
+                  },
+                ],
+              }}
             >
-              {page === "dashboard" && (
-                <DashboardScreen onGo={handlePageChange} />
-              )}
-              {page === "invDetail" && (
-                <InvoiceDetailScreen
-                  onBack={() => handlePageChange("invoices")}
-                />
-              )}
-              {page === "newInvoice" && (
-                <NewInvoiceScreen
-                  onBack={() => handlePageChange("dashboard")}
-                  onCreated={() => {
-                    setRefreshTick((prev) => prev + 1);
-                    handlePageChange("invoices");
-                  }}
-                />
-              )}
-              {page === "invoices" && (
-                <InvoicesScreen
-                  onGo={handlePageChange}
-                  refreshTick={refreshTick}
-                />
-              )}
-              {page === "customers" && (
-                <CustomersScreen refreshTick={refreshTick} />
-              )}
-              {page === "payments" && <PaymentsScreen />}
-              {page === "products" && (
-                <ProductsScreen refreshTick={refreshTick} />
-              )}
-            </ScrollView>
-          </Animated.View>
+              <ScrollView
+                style={styles.screen}
+                contentContainerStyle={styles.screenContent}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isRefreshing}
+                    onRefresh={handleRefresh}
+                  />
+                }
+              >
+                {page === "dashboard" && (
+                  <DashboardScreen onGo={handlePageChange} />
+                )}
+                {page === "invDetail" && (
+                  <InvoiceDetailScreen
+                    invoiceId={selectedInvoiceId}
+                    onBack={() => handlePageChange("invoices")}
+                    onPaymentAdded={() => setRefreshTick((prev) => prev + 1)}
+                    onInvoiceDeleted={() => {
+                      setRefreshTick((prev) => prev + 1);
+                      setSelectedInvoiceId(null);
+                      handlePageChange("invoices");
+                    }}
+                  />
+                )}
+                {page === "newInvoice" && (
+                  <NewInvoiceScreen
+                    onBack={() => handlePageChange("dashboard")}
+                    onCreated={() => {
+                      setRefreshTick((prev) => prev + 1);
+                      handlePageChange("invoices");
+                    }}
+                  />
+                )}
+                {page === "invoices" && (
+                  <InvoicesScreen
+                    onGo={handlePageChange}
+                    onOpenInvoice={(invoiceId) => {
+                      setSelectedInvoiceId(invoiceId);
+                      handlePageChange("invDetail");
+                    }}
+                    refreshTick={refreshTick}
+                  />
+                )}
+                {page === "customers" && (
+                  <CustomersScreen refreshTick={refreshTick} />
+                )}
+                {page === "payments" && (
+                  <PaymentsScreen refreshTick={refreshTick} />
+                )}
+                {page === "products" && (
+                  <ProductsScreen refreshTick={refreshTick} />
+                )}
+              </ScrollView>
+            </Animated.View>
 
-          <TouchableOpacity style={styles.themeToggle} onPress={toggleMode}>
-            <Ionicons
-              name={mode === "dark" ? "sunny-outline" : "moon-outline"}
-              size={20}
-              color={mode === "dark" ? "#ffb020" : "#2535c8"}
-            />
-          </TouchableOpacity>
-
-          <BottomTabs current={page} onGo={handlePageChange} />
-        </>
-      ) : null}
+            <BottomTabs current={page} onGo={handlePageChange} />
+          </>
+        ) : null}
+      </ToastProvider>
     </SafeAreaView>
   );
 }

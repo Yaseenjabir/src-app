@@ -9,7 +9,6 @@ type ListInvoicesOptions = {
 };
 
 export type CreateInvoicePayload = {
-  invoiceNo?: string;
   customerId: string;
   invoiceDate: string;
   discount?: number;
@@ -27,6 +26,60 @@ export type AddPaymentPayload = {
   method?: "CASH" | "BANK" | "OTHER";
   reference?: string;
   notes?: string;
+};
+
+export type InvoiceItemSnapshot = {
+  product_name_snapshot: string;
+  sku_snapshot?: string;
+  unit_price_snapshot: number;
+  quantity: number;
+  line_total: number;
+};
+
+export type InvoiceDetail = Invoice & {
+  paid_amount?: number;
+  subtotal?: number;
+  discount?: number;
+  notes?: string;
+  items?: InvoiceItemSnapshot[];
+};
+
+export type InvoicePayment = {
+  _id: string;
+  invoice_id: string;
+  payment_date: string;
+  amount: number;
+  method: "CASH" | "BANK" | "OTHER";
+  reference?: string;
+  notes?: string;
+};
+
+export type InvoicePaymentsResponse = {
+  invoice: {
+    _id: string;
+    invoice_no: string;
+    total_amount: number;
+    paid_amount: number;
+    remaining_amount: number;
+    status: InvoiceStatus;
+  };
+  payments: InvoicePayment[];
+};
+
+export type AddInvoicePaymentResponse = {
+  payment: InvoicePayment;
+  invoice: InvoiceDetail;
+};
+
+export type UpdateInvoicePayload = {
+  invoiceDate?: string;
+  discount?: number;
+  notes?: string;
+  items?: Array<{
+    productId: string;
+    quantity: number;
+    unitPriceSnapshot?: number;
+  }>;
 };
 
 export function listInvoicesApi(
@@ -58,14 +111,60 @@ export function createInvoiceApi(token: string, body: CreateInvoicePayload) {
   });
 }
 
+export function getInvoiceByIdApi(token: string, invoiceId: string) {
+  return apiRequest<InvoiceDetail>(`/invoices/${invoiceId}`, {
+    method: "GET",
+    token,
+  });
+}
+
+export function updateInvoiceApi(
+  token: string,
+  invoiceId: string,
+  body: UpdateInvoicePayload,
+) {
+  return apiRequest<InvoiceDetail>(`/invoices/${invoiceId}`, {
+    method: "PATCH",
+    token,
+    body,
+  });
+}
+
+export function deleteInvoiceApi(token: string, invoiceId: string) {
+  return apiRequest<{ message: string }>(`/invoices/${invoiceId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export function listInvoicePaymentsApi(token: string, invoiceId: string) {
+  return apiRequest<InvoicePaymentsResponse>(
+    `/invoices/${invoiceId}/payments`,
+    {
+      method: "GET",
+      token,
+    },
+  );
+}
+
 export function addInvoicePaymentApi(
   token: string,
   invoiceId: string,
   body: AddPaymentPayload,
 ) {
-  return apiRequest(`/invoices/${invoiceId}/payments`, {
-    method: "POST",
+  return apiRequest<AddInvoicePaymentResponse>(
+    `/invoices/${invoiceId}/payments`,
+    {
+      method: "POST",
+      token,
+      body,
+    },
+  );
+}
+
+export function deleteInvoicePaymentApi(token: string, paymentId: string) {
+  return apiRequest<{ message: string }>(`/invoices/payments/${paymentId}`, {
+    method: "DELETE",
     token,
-    body,
   });
 }

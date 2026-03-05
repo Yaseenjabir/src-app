@@ -13,7 +13,9 @@ import { addInvoicePaymentApi, createInvoiceApi } from "../api/invoices";
 import { listProductsApi } from "../api/products";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError } from "../api/http";
-import { Card } from "../components/common";
+import { BoxIcon, Card, Loader } from "../components/common";
+import { AppHeader } from "../components/AppHeader";
+import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 import type { Customer, Product } from "../types/entities";
 import { formatMoney } from "../utils/format";
@@ -31,6 +33,7 @@ export function NewInvoiceScreen({
   onCreated?: () => void;
 }) {
   const { styles } = useAppTheme();
+  const { showToast } = useToast();
   const { token } = useAuth();
 
   const [customerQuery, setCustomerQuery] = useState("");
@@ -40,20 +43,17 @@ export function NewInvoiceScreen({
   const [isCustomerLoading, setIsCustomerLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [activeProductPickerIndex, setActiveProductPickerIndex] = useState<
-    number | null
-  >(null);
+  const [isProductPickerOpen, setIsProductPickerOpen] = useState(false);
   const productPickerAnim = useRef(new Animated.Value(0)).current;
 
-  const [invoiceNo] = useState(`#INV-${String(Date.now()).slice(-4)}`);
   const [status, setStatus] = useState<"unpaid" | "partial" | "completed">(
     "unpaid",
   );
   const [amountReceived, setAmountReceived] = useState("");
   const [notes, setNotes] = useState("");
-  const [lineItems, setLineItems] = useState<LineItem[]>([
-    { productId: "", quantity: "1" },
-  ]);
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [draftProductId, setDraftProductId] = useState("");
+  const [draftQuantity, setDraftQuantity] = useState("1");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
@@ -126,32 +126,49 @@ export function NewInvoiceScreen({
     });
   }, [lineItems, products]);
 
+  const draftProduct = useMemo(
+    () => products.find((p) => p._id === draftProductId),
+    [products, draftProductId],
+  );
+
+  const draftQty = Math.max(parseInt(draftQuantity || "0", 10) || 0, 0);
+  const draftUnitPrice = draftProduct?.price ?? 0;
+  const draftLineTotal = draftQty * draftUnitPrice;
+
   const subtotal = itemRows.reduce((sum, row) => sum + row.lineTotal, 0);
   const grandTotal = subtotal;
 
-  const updateLineItem = (index: number, patch: Partial<LineItem>) => {
-    setLineItems((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
-    );
-  };
-
   const addLineItem = () => {
-    setLineItems((prev) => [...prev, { productId: "", quantity: "1" }]);
+    const qty = Math.max(parseInt(draftQuantity || "0", 10) || 0, 0);
+
+    if (!draftProductId) {
+      setScreenError("Please select a product before adding item.");
+      return;
+    }
+
+    if (qty <= 0) {
+      setScreenError("Quantity must be at least 1.");
+      return;
+    }
+
+    setLineItems((prev) => [
+      ...prev,
+      { productId: draftProductId, quantity: String(qty) },
+    ]);
+    setDraftProductId("");
+    setDraftQuantity("1");
+    closeProductPicker();
+    setScreenError(null);
   };
 
   const removeLineItem = (index: number) => {
     setLineItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const adjustLineItemQuantity = (index: number, delta: number) => {
-    setLineItems((prev) =>
-      prev.map((item, i) => {
-        if (i !== index) return item;
-        const current = Math.max(parseInt(item.quantity || "0", 10) || 0, 0);
-        const next = Math.max(current + delta, 1);
-        return { ...item, quantity: String(next) };
-      }),
-    );
+  const adjustDraftQuantity = (delta: number) => {
+    const current = Math.max(parseInt(draftQuantity || "0", 10) || 0, 0);
+    const next = Math.max(current + delta, 1);
+    setDraftQuantity(String(next));
   };
 
   const closeProductPicker = () => {
@@ -161,19 +178,17 @@ export function NewInvoiceScreen({
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
-      setActiveProductPickerIndex(null);
+      setIsProductPickerOpen(false);
     });
   };
 
-  const toggleProductPicker = (index: number) => {
-    const isSame = activeProductPickerIndex === index;
-
-    if (isSame) {
+  const toggleProductPicker = () => {
+    if (isProductPickerOpen) {
       closeProductPicker();
       return;
     }
 
-    setActiveProductPickerIndex(index);
+    setIsProductPickerOpen(true);
     productPickerAnim.setValue(0);
     Animated.timing(productPickerAnim, {
       toValue: 1,
@@ -192,6 +207,11 @@ export function NewInvoiceScreen({
       setScreenError(
         "Type and select a customer, or type a new customer name.",
       );
+      return;
+    }
+
+    if (lineItems.length === 0) {
+      setScreenError("Please add at least one line item.");
       return;
     }
 
@@ -249,7 +269,6 @@ export function NewInvoiceScreen({
       }
 
       const createdInvoice = await createInvoiceApi(token, {
-        invoiceNo,
         customerId: customerIdToUse,
         invoiceDate: today,
         notes: notes.trim() || undefined,
@@ -271,12 +290,15 @@ export function NewInvoiceScreen({
       }
 
       setSuccessMessage("Invoice created successfully.");
+      showToast("Invoice created successfully.", "success");
       onCreated?.();
     } catch (error) {
       if (error instanceof ApiError) {
         setScreenError(error.message);
+        showToast(error.message, "error");
       } else {
         setScreenError("Unable to create invoice.");
+        showToast("Unable to create invoice.", "error");
       }
     } finally {
       setIsSubmitting(false);
@@ -285,20 +307,11 @@ export function NewInvoiceScreen({
 
   return (
     <>
-      <View style={styles.appBar}>
+      <AppHeader>
         <TouchableOpacity onPress={onBack}>
-          <Text style={styles.back}>← Back</Text>
+          <BoxIcon label="←" />
         </TouchableOpacity>
-        <Text style={styles.title}>New Invoice</Text>
-        <View style={{ width: 36 }} />
-      </View>
-
-      <View style={styles.formSection}>
-        <Text style={styles.formLabel}>Invoice Number</Text>
-        <View style={styles.formInputBox}>
-          <Text style={styles.formValue}>{invoiceNo}</Text>
-        </View>
-      </View>
+      </AppHeader>
 
       <View style={styles.formSection}>
         <Text style={styles.formLabel}>Customer</Text>
@@ -313,9 +326,7 @@ export function NewInvoiceScreen({
           placeholderTextColor="#9aa3b2"
         />
 
-        {isCustomerLoading ? (
-          <Text style={styles.itemSub}>Searching customers...</Text>
-        ) : null}
+        {isCustomerLoading ? <Loader compact /> : null}
 
         {customerSuggestions.length > 0 ? (
           <View style={styles.inlineSuggestionsCard}>
@@ -355,132 +366,151 @@ export function NewInvoiceScreen({
 
       <Text style={styles.sec}>LINE ITEMS</Text>
       <Card>
-        {itemRows.map((row, index) => (
-          <View
-            key={`${index}-${row.productId}`}
-            style={[
-              styles.formRow,
-              index === itemRows.length - 1 && styles.noBorder,
-            ]}
+        <View style={styles.formRow}>
+          <TouchableOpacity
+            style={styles.formInputBox}
+            onPress={toggleProductPicker}
           >
-            <TouchableOpacity
-              style={styles.formInputBox}
-              onPress={() => toggleProductPicker(index)}
+            <Text style={styles.formValue}>
+              {draftProduct
+                ? `${draftProduct.name} (${draftProduct.sku})`
+                : "— Select Product —"}
+            </Text>
+          </TouchableOpacity>
+
+          {isProductPickerOpen ? (
+            <Animated.View
+              style={[
+                styles.inlineSuggestionsCard,
+                {
+                  opacity: productPickerAnim,
+                  transform: [
+                    {
+                      translateY: productPickerAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-6, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
             >
-              <Text style={styles.formValue}>
-                {row.product
-                  ? `${row.product.name} (${row.product.sku})`
-                  : "— Select Product —"}
-              </Text>
-            </TouchableOpacity>
+              {products.map((product, pIndex) => (
+                <TouchableOpacity
+                  key={product._id}
+                  style={[
+                    styles.suggestionItem,
+                    pIndex === products.length - 1 && styles.noBorder,
+                  ]}
+                  onPress={() => {
+                    setDraftProductId(product._id);
+                    closeProductPicker();
+                  }}
+                >
+                  <Text style={styles.suggestionText}>{product.name}</Text>
+                  <Text style={styles.amount}>
+                    {formatMoney(product.price)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </Animated.View>
+          ) : null}
 
-            {activeProductPickerIndex === index ? (
-              <Animated.View
-                style={[
-                  styles.inlineSuggestionsCard,
-                  {
-                    opacity: productPickerAnim,
-                    transform: [
-                      {
-                        translateY: productPickerAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-6, 0],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                {products.map((product, pIndex) => (
-                  <TouchableOpacity
-                    key={product._id}
-                    style={[
-                      styles.suggestionItem,
-                      pIndex === products.length - 1 && styles.noBorder,
-                    ]}
-                    onPress={() => {
-                      updateLineItem(index, {
-                        productId: product._id,
-                      });
-                      closeProductPicker();
-                    }}
-                  >
-                    <Text style={styles.suggestionText}>{product.name}</Text>
-                    <Text style={styles.amount}>
-                      {formatMoney(product.price)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </Animated.View>
-            ) : null}
+          <View style={styles.formRow3}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>QTY</Text>
+              <View style={styles.qtyControlRow}>
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={() => adjustDraftQuantity(-1)}
+                >
+                  <Text style={styles.qtyBtnText}>−</Text>
+                </TouchableOpacity>
 
-            <View style={styles.formRow3}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.formLabel}>QTY</Text>
-                <View style={styles.qtyControlRow}>
-                  <TouchableOpacity
-                    style={styles.qtyBtn}
-                    onPress={() => adjustLineItemQuantity(index, -1)}
-                  >
-                    <Text style={styles.qtyBtnText}>−</Text>
-                  </TouchableOpacity>
+                <TextInput
+                  keyboardType="number-pad"
+                  value={draftQuantity}
+                  onChangeText={(value) =>
+                    setDraftQuantity(value.replace(/[^0-9]/g, ""))
+                  }
+                  style={styles.qtyInput}
+                />
 
-                  <TextInput
-                    keyboardType="number-pad"
-                    value={row.quantity}
-                    onChangeText={(value) =>
-                      updateLineItem(index, {
-                        quantity: value.replace(/[^0-9]/g, ""),
-                      })
-                    }
-                    style={styles.qtyInput}
-                  />
-
-                  <TouchableOpacity
-                    style={styles.qtyBtn}
-                    onPress={() => adjustLineItemQuantity(index, 1)}
-                  >
-                    <Text style={styles.qtyBtnText}>+</Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={styles.qtyBtn}
+                  onPress={() => adjustDraftQuantity(1)}
+                >
+                  <Text style={styles.qtyBtnText}>+</Text>
+                </TouchableOpacity>
               </View>
             </View>
+          </View>
 
-            <View style={styles.formRow2}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.formLabel}>PRICE</Text>
-                <View style={styles.formInputBox}>
-                  <Text style={styles.formValue}>
-                    {formatMoney(row.unitPrice)}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.formLabel}>TOTAL</Text>
-                <View style={styles.formInputBox}>
-                  <Text style={styles.formValue}>
-                    {formatMoney(row.lineTotal)}
-                  </Text>
-                </View>
+          <View style={styles.formRow2}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>PRICE</Text>
+              <View style={styles.formInputBox}>
+                <Text style={styles.formValue}>
+                  {formatMoney(draftUnitPrice)}
+                </Text>
               </View>
             </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>TOTAL</Text>
+              <View style={styles.formInputBox}>
+                <Text style={styles.formValue}>
+                  {formatMoney(draftLineTotal)}
+                </Text>
+              </View>
+            </View>
+          </View>
 
-            {itemRows.length > 1 ? (
+          <TouchableOpacity
+            style={[styles.addItemBtn, { marginHorizontal: 0, marginTop: 14 }]}
+            onPress={addLineItem}
+          >
+            <Text style={styles.seeAll}>+ Add Item</Text>
+          </TouchableOpacity>
+        </View>
+      </Card>
+
+      <View style={{ height: 10 }} />
+
+      <Card>
+        {itemRows.length === 0 ? (
+          <View style={styles.listItem}>
+            <Text style={styles.itemSub}>No line items added yet.</Text>
+          </View>
+        ) : (
+          itemRows.map((row, index) => (
+            <View
+              key={`${index}-${row.productId}`}
+              style={[
+                styles.listItem,
+                index === itemRows.length - 1 && styles.noBorder,
+              ]}
+            >
+              <View style={styles.itemMain}>
+                <Text style={styles.itemTitle}>
+                  {row.product?.name || "Unknown Product"}
+                </Text>
+                <Text style={styles.itemSub}>
+                  {row.qty} × {formatMoney(row.unitPrice)}
+                </Text>
+              </View>
+
+              <Text style={styles.amount}>{formatMoney(row.lineTotal)}</Text>
+
               <TouchableOpacity
-                style={styles.removeItemBtn}
+                style={styles.customerIconBtnDanger}
                 onPress={() => removeLineItem(index)}
               >
                 <Ionicons name="trash-outline" size={14} color="#e8141c" />
-                <Text style={styles.removeItemBtnText}>Remove Item</Text>
               </TouchableOpacity>
-            ) : null}
-          </View>
-        ))}
+            </View>
+          ))
+        )}
       </Card>
-
-      <TouchableOpacity style={styles.addItemBtn} onPress={addLineItem}>
-        <Text style={styles.seeAll}>+ Add Item</Text>
-      </TouchableOpacity>
 
       <Text style={styles.sec}>PAYMENT</Text>
       <View style={styles.formSection}>

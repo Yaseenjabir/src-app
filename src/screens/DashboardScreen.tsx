@@ -1,33 +1,16 @@
-import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { invoiceData } from "../data/mock";
 import type { Page } from "../types/navigation";
 import { useAppTheme } from "../theme/AppThemeContext";
-import { BoxIcon, Card, SectionTitle, StatCard } from "../components/common";
+import { Card, SectionTitle, StatCard } from "../components/common";
+import { AppHeader } from "../components/AppHeader";
 
 export function DashboardScreen({ onGo }: { onGo: (p: Page) => void }) {
   const { styles, badgeStyle } = useAppTheme();
 
   return (
     <>
-      <View style={styles.appBar}>
-        <View style={styles.brandWrap}>
-          <Image
-            source={require("../../assets/logo.png")}
-            style={styles.brandLogo}
-            resizeMode="contain"
-          />
-          <View>
-            <Text style={styles.title}>SRC</Text>
-            <Text style={styles.subTitle}>Switch & Socket</Text>
-          </View>
-        </View>
-        <View style={styles.row}>
-          <BoxIcon label="🔔" />
-          <View style={[styles.boxIcon, styles.avatar]}>
-            <Text style={styles.avatarText}>SA</Text>
-          </View>
-        </View>
-      </View>
+      <AppHeader />
 
       <View style={styles.hero}>
         <Text style={styles.heroMuted}>Good morning 👋</Text>

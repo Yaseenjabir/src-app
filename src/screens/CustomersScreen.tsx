@@ -9,12 +9,15 @@ import {
 } from "../api/customers";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError } from "../api/http";
-import { BoxIcon, Card } from "../components/common";
+import { BoxIcon, Card, Loader } from "../components/common";
+import { AppHeader } from "../components/AppHeader";
+import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 import type { Customer } from "../types/entities";
 
 export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   const { styles } = useAppTheme();
+  const { showToast } = useToast();
   const { token } = useAuth();
   const [items, setItems] = useState<Customer[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -99,8 +102,10 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     try {
       if (editingCustomerId) {
         await updateCustomerApi(token, editingCustomerId, payload);
+        showToast("Customer updated successfully.", "success");
       } else {
         await createCustomerApi(token, payload);
+        showToast("Customer added successfully.", "success");
       }
 
       setIsFormOpen(false);
@@ -109,8 +114,10 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     } catch (e) {
       if (e instanceof ApiError) {
         setFormError(e.message);
+        showToast(e.message, "error");
       } else {
         setFormError("Unable to save customer.");
+        showToast("Unable to save customer.", "error");
       }
     } finally {
       setIsSaving(false);
@@ -133,8 +140,12 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
               setActionCustomerId(customer._id);
               await deleteCustomerApi(token, customer._id);
               await loadCustomers();
-            } catch {
-              setError("Unable to delete customer");
+              showToast("Customer deleted successfully.", "success");
+            } catch (e) {
+              const message =
+                e instanceof ApiError ? e.message : "Unable to delete customer";
+              setError(message);
+              showToast(message, "error");
             } finally {
               setActionCustomerId(null);
             }
@@ -146,12 +157,11 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
 
   return (
     <>
-      <View style={styles.appBar}>
-        <Text style={styles.title}>Customers</Text>
+      <AppHeader>
         <TouchableOpacity onPress={openCreateForm}>
           <BoxIcon label="＋" red />
         </TouchableOpacity>
-      </View>
+      </AppHeader>
 
       {isFormOpen ? (
         <Card>
@@ -240,11 +250,7 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
       ) : null}
 
       <Card>
-        {isLoading ? (
-          <View style={styles.listItem}>
-            <Text style={styles.itemSub}>Loading customers...</Text>
-          </View>
-        ) : null}
+        {isLoading ? <Loader /> : null}
 
         {!isLoading && error ? (
           <View style={styles.listItem}>

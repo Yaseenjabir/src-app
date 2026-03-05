@@ -10,13 +10,16 @@ import {
 } from "../api/products";
 import { ApiError } from "../api/http";
 import { useAuth } from "../auth/AuthContext";
-import { BoxIcon, Card } from "../components/common";
+import { BoxIcon, Card, Loader } from "../components/common";
+import { AppHeader } from "../components/AppHeader";
+import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 import type { Product } from "../types/entities";
 import { formatMoney } from "../utils/format";
 
 export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   const { styles } = useAppTheme();
+  const { showToast } = useToast();
   const { token } = useAuth();
   const [items, setItems] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -122,8 +125,10 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     try {
       if (editingProductId) {
         await updateProductApi(token, editingProductId, payload);
+        showToast("Product updated successfully.", "success");
       } else {
         await createProductApi(token, payload);
+        showToast("Product added successfully.", "success");
       }
 
       setIsFormOpen(false);
@@ -132,8 +137,10 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     } catch (e) {
       if (e instanceof ApiError) {
         setFormError(e.message);
+        showToast(e.message, "error");
       } else {
         setFormError("Unable to save product.");
+        showToast("Unable to save product.", "error");
       }
     } finally {
       setIsSaving(false);
@@ -153,8 +160,10 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
             setActionProductId(product._id);
             await deleteProductApi(token, product._id);
             await loadProducts();
+            showToast("Product deleted successfully.", "success");
           } catch {
             setError("Unable to delete product");
+            showToast("Unable to delete product.", "error");
           } finally {
             setActionProductId(null);
           }
@@ -165,12 +174,11 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
 
   return (
     <>
-      <View style={styles.appBar}>
-        <Text style={styles.title}>Products</Text>
+      <AppHeader>
         <TouchableOpacity onPress={openCreateForm}>
           <BoxIcon label="＋" red />
         </TouchableOpacity>
-      </View>
+      </AppHeader>
 
       {isFormOpen ? (
         <Card>
@@ -262,11 +270,7 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
       ) : null}
 
       <Card>
-        {isLoading ? (
-          <View style={styles.listItem}>
-            <Text style={styles.itemSub}>Loading products...</Text>
-          </View>
-        ) : null}
+        {isLoading ? <Loader /> : null}
 
         {!isLoading && error ? (
           <View style={styles.listItem}>

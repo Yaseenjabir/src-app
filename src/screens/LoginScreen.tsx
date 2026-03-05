@@ -12,10 +12,12 @@ import {
 import { ApiError } from "../api/http";
 import { useAuth } from "../auth/AuthContext";
 import { API_BASE_URL } from "../config/env";
+import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 
 export function LoginScreen() {
   const { styles } = useAppTheme();
+  const { showToast } = useToast();
   const { login, isLoggingIn, authError } = useAuth();
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("test12345");
@@ -34,13 +36,17 @@ export function LoginScreen() {
     try {
       await login(email.trim(), password);
       pushLog("Login success");
+      showToast("Login successful.", "success");
     } catch (error) {
       if (error instanceof ApiError) {
         pushLog(`Failed ${error.status} ${error.code}: ${error.message}`);
+        showToast(error.message, "error");
       } else if (error instanceof Error) {
         pushLog(`Failed: ${error.message}`);
+        showToast(error.message, "error");
       } else {
         pushLog("Failed: unknown error");
+        showToast("Login failed.", "error");
       }
     }
   };

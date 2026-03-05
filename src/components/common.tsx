@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { useAppTheme } from "../theme/AppThemeContext";
 
 export function SectionTitle({
@@ -98,6 +98,16 @@ export function Chip({ label, active }: { label: string; active?: boolean }) {
 export function Card({ children }: { children: ReactNode }) {
   const { styles } = useAppTheme();
   return <View style={styles.card}>{children}</View>;
+}
+
+export function Loader({ compact }: { compact?: boolean }) {
+  const { styles } = useAppTheme();
+
+  return (
+    <View style={[styles.loaderWrap, compact && styles.loaderWrapCompact]}>
+      <ActivityIndicator size={compact ? "small" : "large"} color="#e8141c" />
+    </View>
+  );
 }
 
 export function SimpleRow({
