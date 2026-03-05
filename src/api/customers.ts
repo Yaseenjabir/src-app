@@ -18,6 +18,8 @@ type CreateCustomerPayload = {
   is_active?: boolean;
 };
 
+type UpdateCustomerPayload = Partial<CreateCustomerPayload>;
+
 export function listCustomersApi(
   token: string,
   options: ListCustomersOptions = {},
@@ -48,5 +50,24 @@ export function createCustomerApi(token: string, body: CreateCustomerPayload) {
     method: "POST",
     token,
     body,
+  });
+}
+
+export function updateCustomerApi(
+  token: string,
+  customerId: string,
+  body: UpdateCustomerPayload,
+) {
+  return apiRequest<Customer>(`/customers/${customerId}`, {
+    method: "PATCH",
+    token,
+    body,
+  });
+}
+
+export function deleteCustomerApi(token: string, customerId: string) {
+  return apiRequest(`/customers/${customerId}`, {
+    method: "DELETE",
+    token,
   });
 }

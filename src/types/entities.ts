@@ -4,6 +4,7 @@ export type Customer = {
   shop_name?: string;
   address?: string;
   phone?: string;
+  notes?: string;
   is_active: boolean;
 };
 
