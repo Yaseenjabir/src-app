@@ -4,6 +4,7 @@ import type { Invoice, InvoiceStatus } from "../types/entities";
 
 type ListInvoicesOptions = {
   status?: InvoiceStatus;
+  customerId?: string;
   page?: number;
   limit?: number;
 };
@@ -92,6 +93,10 @@ export function listInvoicesApi(
 
   if (options.status) {
     params.set("status", options.status);
+  }
+
+  if (options.customerId) {
+    params.set("customerId", options.customerId);
   }
 
   return apiRequest<PaginatedResponse<Invoice>>(

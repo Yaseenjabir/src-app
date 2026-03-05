@@ -22,26 +22,6 @@ export function BottomTabs({
         onPress={() => onGo("dashboard")}
       />
       <Tab
-        label="Invoices"
-        icon="document-text"
-        iconOutline="document-text-outline"
-        active={current === "invoices"}
-        onPress={() => onGo("invoices")}
-      />
-      <TouchableOpacity
-        style={styles.centerTab}
-        onPress={() => onGo("newInvoice")}
-      >
-        <Text style={{ color: "white", fontSize: 22, marginTop: -2 }}>＋</Text>
-      </TouchableOpacity>
-      <Tab
-        label="Customers"
-        icon="people"
-        iconOutline="people-outline"
-        active={current === "customers"}
-        onPress={() => onGo("customers")}
-      />
-      <Tab
         label="Products"
         icon="cube"
         iconOutline="cube-outline"
@@ -49,11 +29,42 @@ export function BottomTabs({
         onPress={() => onGo("products")}
       />
       <Tab
+        label="Customers"
+        icon="people"
+        iconOutline="people-outline"
+        active={current === "customers"}
+        onPress={() => onGo("customers")}
+      />
+      <View style={styles.centerTabSlot}>
+        <TouchableOpacity
+          style={styles.centerTab}
+          onPress={() => onGo("newInvoice")}
+        >
+          <Text style={{ color: "white", fontSize: 10, marginTop: -1 }}>
+            ＋
+          </Text>
+        </TouchableOpacity>
+      </View>
+      <Tab
+        label="Invoices"
+        icon="document-text"
+        iconOutline="document-text-outline"
+        active={current === "invoices"}
+        onPress={() => onGo("invoices")}
+      />
+      <Tab
         label="Payments"
         icon="card"
         iconOutline="card-outline"
-        active={current === "payments"}
+        active={current === "payments" || current === "payDetail"}
         onPress={() => onGo("payments")}
+      />
+      <Tab
+        label="Ledger"
+        icon="book"
+        iconOutline="book-outline"
+        active={current === "ledger" || current === "ledgerDetail"}
+        onPress={() => onGo("ledger")}
       />
     </View>
   );

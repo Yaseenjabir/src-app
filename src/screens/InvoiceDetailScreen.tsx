@@ -6,7 +6,6 @@ import {
   deleteInvoiceApi,
   getInvoiceByIdApi,
   listInvoicePaymentsApi,
-  updateInvoiceApi,
   type InvoiceDetail,
   type InvoicePayment,
 } from "../api/invoices";
@@ -37,10 +36,6 @@ export function InvoiceDetailScreen({
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isEditingInvoice, setIsEditingInvoice] = useState(false);
-  const [invoiceDiscount, setInvoiceDiscount] = useState("0");
-  const [invoiceNotes, setInvoiceNotes] = useState("");
-  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
   const [actionPaymentId, setActionPaymentId] = useState<string | null>(null);
 
   const [isPaymentPanelOpen, setIsPaymentPanelOpen] = useState(false);
@@ -62,8 +57,6 @@ export function InvoiceDetailScreen({
       ]);
       setInvoice(invoiceResponse);
       setPayments(paymentsResponse.payments);
-      setInvoiceDiscount(String(invoiceResponse.discount ?? 0));
-      setInvoiceNotes(invoiceResponse.notes || "");
     } catch {
       setError("Unable to load invoice details.");
       showToast("Unable to load invoice details.", "error");
@@ -82,7 +75,6 @@ export function InvoiceDetailScreen({
     setPaymentAmount("");
     setPaymentNotes("");
     setPaymentMethod("CASH");
-    setIsEditingInvoice(false);
   }, [invoiceId]);
 
   const invoiceDateText = useMemo(() => {
@@ -136,43 +128,6 @@ export function InvoiceDetailScreen({
       }
     } finally {
       setIsSavingPayment(false);
-    }
-  };
-
-  const submitInvoiceUpdate = async () => {
-    if (!token || !invoiceId || !invoice) return;
-
-    const parsedDiscount = Math.max(
-      parseInt(invoiceDiscount || "0", 10) || 0,
-      0,
-    );
-    const subtotal = invoice.subtotal ?? invoice.total_amount;
-
-    if (parsedDiscount > subtotal) {
-      setError("Discount cannot be greater than subtotal.");
-      return;
-    }
-
-    setIsSavingInvoice(true);
-    setError(null);
-
-    try {
-      await updateInvoiceApi(token, invoiceId, {
-        discount: parsedDiscount,
-        notes: invoiceNotes.trim() || undefined,
-      });
-
-      showToast("Invoice updated successfully.", "success");
-      setIsEditingInvoice(false);
-      onPaymentAdded?.();
-      await load();
-    } catch (e) {
-      const message =
-        e instanceof ApiError ? e.message : "Unable to update invoice.";
-      setError(message);
-      showToast(message, "error");
-    } finally {
-      setIsSavingInvoice(false);
     }
   };
 
@@ -291,19 +246,6 @@ export function InvoiceDetailScreen({
 
             <View style={styles.customerFormActions}>
               <TouchableOpacity
-                style={styles.customerSecondaryBtn}
-                onPress={() => {
-                  setIsEditingInvoice((prev) => !prev);
-                  setInvoiceDiscount(String(invoice.discount ?? 0));
-                  setInvoiceNotes(invoice.notes || "");
-                }}
-              >
-                <Text style={styles.itemSub}>
-                  {isEditingInvoice ? "Close" : "Edit Invoice"}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
                 style={styles.customerIconBtnDanger}
                 onPress={handleDeleteInvoice}
               >
@@ -311,59 +253,6 @@ export function InvoiceDetailScreen({
               </TouchableOpacity>
             </View>
           </View>
-
-          {isEditingInvoice ? (
-            <Card>
-              <View style={styles.formRow}>
-                <Text style={styles.itemTitle}>Update Invoice</Text>
-
-                <Text style={styles.formLabel}>Discount (PKR)</Text>
-                <TextInput
-                  value={invoiceDiscount}
-                  onChangeText={(value) =>
-                    setInvoiceDiscount(value.replace(/[^0-9]/g, ""))
-                  }
-                  keyboardType="number-pad"
-                  placeholder="0"
-                  placeholderTextColor="#9aa3b2"
-                  style={styles.formInput}
-                />
-
-                <Text style={styles.formLabel}>Notes</Text>
-                <TextInput
-                  value={invoiceNotes}
-                  onChangeText={setInvoiceNotes}
-                  placeholder="Add note"
-                  placeholderTextColor="#9aa3b2"
-                  style={styles.formInput}
-                />
-
-                <View style={styles.customerFormActions}>
-                  <TouchableOpacity
-                    style={styles.customerSecondaryBtn}
-                    onPress={() => {
-                      setIsEditingInvoice(false);
-                      setInvoiceDiscount(String(invoice.discount ?? 0));
-                      setInvoiceNotes(invoice.notes || "");
-                    }}
-                    disabled={isSavingInvoice}
-                  >
-                    <Text style={styles.itemSub}>Cancel</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.customerPrimaryBtn}
-                    onPress={submitInvoiceUpdate}
-                    disabled={isSavingInvoice}
-                  >
-                    <Text style={styles.customerPrimaryBtnText}>
-                      {isSavingInvoice ? "Saving..." : "Update Invoice"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </Card>
-          ) : null}
 
           <Text style={styles.sec}>LINE ITEMS</Text>
           <Card>
@@ -396,42 +285,53 @@ export function InvoiceDetailScreen({
             )}
           </Card>
 
-          <Text style={styles.sec}>PAYMENT HISTORY</Text>
+          <Text style={styles.sec}>NOTES</Text>
           <Card>
-            {payments.length > 0 ? (
-              payments.map((payment, idx) => (
-                <View
-                  key={payment._id}
-                  style={[
-                    styles.listItem,
-                    idx === payments.length - 1 && styles.noBorder,
-                  ]}
-                >
-                  <View style={styles.itemMain}>
-                    <Text style={styles.itemTitle}>{payment.method}</Text>
-                    <Text style={styles.itemSub}>
-                      {new Date(payment.payment_date).toLocaleDateString()}
-                    </Text>
-                  </View>
-                  <Text style={styles.amount}>
-                    {formatMoney(payment.amount)}
-                  </Text>
-
-                  <TouchableOpacity
-                    style={styles.customerIconBtnDanger}
-                    onPress={() => handleDeletePayment(payment)}
-                    disabled={actionPaymentId === payment._id}
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#e8141c" />
-                  </TouchableOpacity>
-                </View>
-              ))
-            ) : (
-              <View style={styles.listItem}>
-                <Text style={styles.itemSub}>No payments recorded yet.</Text>
-              </View>
-            )}
+            <View style={[styles.listItem, styles.noBorder]}>
+              <Text style={styles.itemSub}>
+                {invoice.notes?.trim() || "No notes added."}
+              </Text>
+            </View>
           </Card>
+
+          {payments.length > 0 ? (
+            <>
+              <Text style={styles.sec}>PAYMENT HISTORY</Text>
+              <Card>
+                {payments.map((payment, idx) => (
+                  <View
+                    key={payment._id}
+                    style={[
+                      styles.listItem,
+                      idx === payments.length - 1 && styles.noBorder,
+                    ]}
+                  >
+                    <View style={styles.itemMain}>
+                      <Text style={styles.itemTitle}>{payment.method}</Text>
+                      <Text style={styles.itemSub}>
+                        {new Date(payment.payment_date).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Text style={styles.amount}>
+                      {formatMoney(payment.amount)}
+                    </Text>
+
+                    <TouchableOpacity
+                      style={styles.customerIconBtnDanger}
+                      onPress={() => handleDeletePayment(payment)}
+                      disabled={actionPaymentId === payment._id}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={16}
+                        color="#e8141c"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </Card>
+            </>
+          ) : null}
 
           <Text style={styles.sec}>RECORD PAYMENT</Text>
           {!isPaymentPanelOpen ? (

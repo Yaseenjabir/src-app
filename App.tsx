@@ -14,13 +14,18 @@ import { CustomersScreen } from "./src/screens/CustomersScreen";
 import { DashboardScreen } from "./src/screens/DashboardScreen";
 import { InvoiceDetailScreen } from "./src/screens/InvoiceDetailScreen";
 import { InvoicesScreen } from "./src/screens/InvoicesScreen";
+import { LedgerDetailScreen } from "./src/screens/LedgerDetailScreen";
+import { LedgerScreen } from "./src/screens/LedgerScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { NewInvoiceScreen } from "./src/screens/NewInvoiceScreen";
+import { PaymentDetailScreen } from "./src/screens/PaymentDetailScreen";
 import { PaymentsScreen } from "./src/screens/PaymentsScreen";
 import { ProductsScreen } from "./src/screens/ProductsScreen";
 import { AppThemeProvider, useAppTheme } from "./src/theme/AppThemeContext";
 import type { Page } from "./src/types/navigation";
 import { ToastProvider } from "./src/feedback/ToastContext";
+import type { PaymentListItem } from "./src/api/payments";
+import type { Customer } from "./src/types/entities";
 
 export default function App() {
   return (
@@ -39,6 +44,10 @@ function AppContent() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
     null,
   );
+  const [selectedPayment, setSelectedPayment] =
+    useState<PaymentListItem | null>(null);
+  const [selectedLedgerCustomer, setSelectedLedgerCustomer] =
+    useState<Customer | null>(null);
   const transition = useRef(new Animated.Value(1)).current;
   const { mode, styles, toggleMode } = useAppTheme();
   const { isBootstrapping, token, user } = useAuth();
@@ -153,8 +162,37 @@ function AppContent() {
                 {page === "customers" && (
                   <CustomersScreen refreshTick={refreshTick} />
                 )}
+                {page === "ledger" && (
+                  <LedgerScreen
+                    refreshTick={refreshTick}
+                    onOpenCustomer={(customer) => {
+                      setSelectedLedgerCustomer(customer);
+                      handlePageChange("ledgerDetail");
+                    }}
+                  />
+                )}
+                {page === "ledgerDetail" && (
+                  <LedgerDetailScreen
+                    customer={selectedLedgerCustomer}
+                    onBack={() => handlePageChange("ledger")}
+                    refreshTick={refreshTick}
+                  />
+                )}
                 {page === "payments" && (
-                  <PaymentsScreen refreshTick={refreshTick} />
+                  <PaymentsScreen
+                    refreshTick={refreshTick}
+                    onOpenPayment={(payment) => {
+                      setSelectedPayment(payment);
+                      handlePageChange("payDetail");
+                    }}
+                  />
+                )}
+                {page === "payDetail" && (
+                  <PaymentDetailScreen
+                    payment={selectedPayment}
+                    onBack={() => handlePageChange("payments")}
+                    onDeleted={() => setRefreshTick((prev) => prev + 1)}
+                  />
                 )}
                 {page === "products" && (
                   <ProductsScreen refreshTick={refreshTick} />

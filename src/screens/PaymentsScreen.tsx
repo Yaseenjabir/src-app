@@ -7,7 +7,6 @@ import {
   listPaymentsApi,
   type PaymentListItem,
   type PaymentMethod,
-  updatePaymentApi,
 } from "../api/payments";
 import { listInvoicesApi } from "../api/invoices";
 import { ApiError } from "../api/http";
@@ -21,7 +20,13 @@ import { customerNameFromRef, formatMoney } from "../utils/format";
 
 type MethodFilter = "ALL" | PaymentMethod;
 
-export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
+export function PaymentsScreen({
+  refreshTick = 0,
+  onOpenPayment,
+}: {
+  refreshTick?: number;
+  onOpenPayment: (payment: PaymentListItem) => void;
+}) {
   const { styles } = useAppTheme();
   const { showToast } = useToast();
   const { token } = useAuth();
@@ -33,7 +38,6 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   const [error, setError] = useState<string | null>(null);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [showInvoiceOptions, setShowInvoiceOptions] = useState(false);
   const [amount, setAmount] = useState("");
@@ -48,13 +52,7 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     [invoices, selectedInvoiceId],
   );
 
-  const editingPayment = useMemo(
-    () => items.find((item) => item._id === editingPaymentId),
-    [items, editingPaymentId],
-  );
-
   const resetForm = () => {
-    setEditingPaymentId(null);
     setSelectedInvoiceId("");
     setAmount("");
     setMethod("CASH");
@@ -108,14 +106,10 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
       return;
     }
 
-    const currentRemainingAmount = Math.max(
+    const maxAllowedAmount = Math.max(
       selectedInvoice?.remaining_amount ?? 0,
       0,
     );
-    const editableCurrentAmount = editingPayment?.amount ?? 0;
-    const maxAllowedAmount = editingPaymentId
-      ? currentRemainingAmount + editableCurrentAmount
-      : currentRemainingAmount;
 
     if (parsedAmount > maxAllowedAmount) {
       setFormError(
@@ -126,23 +120,14 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
 
     setIsSaving(true);
     try {
-      if (editingPaymentId) {
-        await updatePaymentApi(token, editingPaymentId, {
-          amount: parsedAmount,
-          method,
-          notes: notes.trim() || undefined,
-        });
-        showToast("Payment updated successfully.", "success");
-      } else {
-        await createPaymentApi(token, {
-          invoiceId: selectedInvoiceId,
-          paymentDate: new Date().toISOString().slice(0, 10),
-          amount: parsedAmount,
-          method,
-          notes: notes.trim() || undefined,
-        });
-        showToast("Payment added successfully.", "success");
-      }
+      await createPaymentApi(token, {
+        invoiceId: selectedInvoiceId,
+        paymentDate: new Date().toISOString().slice(0, 10),
+        amount: parsedAmount,
+        method,
+        notes: notes.trim() || undefined,
+      });
+      showToast("Payment added successfully.", "success");
 
       resetForm();
       setIsFormOpen(false);
@@ -160,20 +145,6 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     }
   };
 
-  const startEditPayment = (payment: PaymentListItem) => {
-    const invoiceRef =
-      typeof payment.invoice_id === "string" ? undefined : payment.invoice_id;
-
-    setEditingPaymentId(payment._id);
-    setSelectedInvoiceId(invoiceRef?._id ?? "");
-    setAmount(String(payment.amount));
-    setMethod(payment.method);
-    setNotes(payment.notes || "");
-    setFormError(null);
-    setShowInvoiceOptions(false);
-    setIsFormOpen(true);
-  };
-
   const handleDeletePayment = (payment: PaymentListItem) => {
     if (!token) return;
 
@@ -187,11 +158,6 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
             setActionPaymentId(payment._id);
             await deletePaymentApi(token, payment._id);
             showToast("Payment deleted successfully.", "success");
-
-            if (editingPaymentId === payment._id) {
-              resetForm();
-              setIsFormOpen(false);
-            }
 
             await load();
           } catch (e) {
@@ -261,18 +227,12 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
       {isFormOpen ? (
         <Card>
           <View style={styles.formRow}>
-            <Text style={styles.itemTitle}>
-              {editingPaymentId ? "Edit Payment" : "Record Payment"}
-            </Text>
+            <Text style={styles.itemTitle}>Record Payment</Text>
 
             <Text style={styles.formLabel}>Invoice *</Text>
             <TouchableOpacity
               style={styles.formInputBox}
-              onPress={() => {
-                if (!editingPaymentId) {
-                  setShowInvoiceOptions((prev) => !prev);
-                }
-              }}
+              onPress={() => setShowInvoiceOptions((prev) => !prev)}
             >
               <Text style={styles.formValue}>
                 {selectedInvoice
@@ -355,11 +315,7 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
               disabled={isSaving}
             >
               <Text style={styles.ctaText}>
-                {isSaving
-                  ? "Saving..."
-                  : editingPaymentId
-                    ? "Update Payment"
-                    : "Add Payment"}
+                {isSaving ? "Saving..." : "Add Payment"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -394,12 +350,13 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
                 : invoiceRef?.customer_id;
 
             return (
-              <View
+              <TouchableOpacity
                 key={payment._id}
                 style={[
                   styles.listItem,
                   idx === items.length - 1 && styles.noBorder,
                 ]}
+                onPress={() => onOpenPayment(payment)}
               >
                 <View style={styles.itemMain}>
                   <Text style={styles.itemTitle}>
@@ -420,13 +377,6 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
 
                 <View style={styles.customerRowActions}>
                   <TouchableOpacity
-                    style={styles.customerIconBtn}
-                    onPress={() => startEditPayment(payment)}
-                  >
-                    <Ionicons name="create-outline" size={16} color="#2535c8" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
                     style={styles.customerIconBtnDanger}
                     onPress={() => handleDeletePayment(payment)}
                     disabled={actionPaymentId === payment._id}
@@ -434,7 +384,7 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
                     <Ionicons name="trash-outline" size={16} color="#e8141c" />
                   </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
       </Card>

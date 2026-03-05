@@ -60,6 +60,12 @@ export function NewInvoiceScreen({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (status !== "partial") {
+      setAmountReceived("");
+    }
+  }, [status]);
+
+  useEffect(() => {
     const loadProducts = async () => {
       if (!token) return;
       try {
@@ -75,6 +81,12 @@ export function NewInvoiceScreen({
 
   useEffect(() => {
     if (!token) return;
+
+    if (selectedCustomerId) {
+      setCustomerSuggestions([]);
+      setIsCustomerLoading(false);
+      return;
+    }
 
     const trimmed = customerQuery.trim();
     if (!trimmed) {
@@ -101,7 +113,7 @@ export function NewInvoiceScreen({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [customerQuery, token]);
+  }, [customerQuery, token, selectedCustomerId]);
 
   const selectedCustomer = useMemo(
     () =>
@@ -241,7 +253,7 @@ export function NewInvoiceScreen({
       }
       paymentAmount = parsedAmount;
     } else if (status === "completed") {
-      paymentAmount = parsedAmount > 0 ? parsedAmount : grandTotal;
+      paymentAmount = grandTotal;
     }
 
     setIsSubmitting(true);
@@ -328,7 +340,7 @@ export function NewInvoiceScreen({
 
         {isCustomerLoading ? <Loader compact /> : null}
 
-        {customerSuggestions.length > 0 ? (
+        {customerSuggestions.length > 0 && !selectedCustomerId ? (
           <View style={styles.inlineSuggestionsCard}>
             {customerSuggestions.map((customer, index) => (
               <TouchableOpacity
@@ -341,6 +353,7 @@ export function NewInvoiceScreen({
                   setSelectedCustomerId(customer._id);
                   setCustomerQuery(customer.shop_name || customer.name);
                   setCustomerSuggestions([]);
+                  setIsCustomerLoading(false);
                 }}
               >
                 <Text style={styles.suggestionText}>
@@ -558,19 +571,21 @@ export function NewInvoiceScreen({
         </View>
       </View>
 
-      <View style={styles.formSection}>
-        <Text style={styles.formLabel}>Amount Received (PKR)</Text>
-        <TextInput
-          keyboardType="number-pad"
-          value={amountReceived}
-          onChangeText={(value) =>
-            setAmountReceived(value.replace(/[^0-9]/g, ""))
-          }
-          style={styles.formInput}
-          placeholder="0"
-          placeholderTextColor="#9aa3b2"
-        />
-      </View>
+      {status === "partial" ? (
+        <View style={styles.formSection}>
+          <Text style={styles.formLabel}>Amount Received (PKR)</Text>
+          <TextInput
+            keyboardType="number-pad"
+            value={amountReceived}
+            onChangeText={(value) =>
+              setAmountReceived(value.replace(/[^0-9]/g, ""))
+            }
+            style={styles.formInput}
+            placeholder="0"
+            placeholderTextColor="#9aa3b2"
+          />
+        </View>
+      ) : null}
 
       <View style={styles.formSection}>
         <Text style={styles.formLabel}>Notes (Optional)</Text>

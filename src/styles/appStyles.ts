@@ -321,6 +321,14 @@ export function createAppStyles(mode: ThemeMode) {
     itemSub: { color: c.muted, fontSize: 11, marginTop: 2 },
     itemRight: { alignItems: "flex-end" },
     amount: { color: c.text, fontSize: 14, fontWeight: "700" },
+    amountSuccess: { color: c.success, fontSize: 13, fontWeight: "800" },
+    amountDanger: { color: c.unpaid, fontSize: 13, fontWeight: "800" },
+    summaryAmountsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginLeft: 8,
+    },
     loaderWrap: {
       minHeight: 86,
       alignItems: "center",
@@ -600,14 +608,18 @@ export function createAppStyles(mode: ThemeMode) {
     tabIcon: { marginBottom: 3 },
     tabText: { color: c.tabInactive, fontSize: 10, fontWeight: "700" },
     tabActive: { color: c.danger },
+    centerTabSlot: {
+      flex: 1,
+      alignItems: "center",
+    },
     centerTab: {
-      width: 52,
-      height: 52,
+      width: 42,
+      height: 42,
       borderRadius: 16,
       backgroundColor: c.danger,
       justifyContent: "center",
       alignItems: "center",
-      marginTop: -18,
+      marginTop: -10,
     },
     themeToggle: {
       position: "absolute",
