@@ -126,7 +126,10 @@ function AppContent() {
                 }
               >
                 {page === "dashboard" && (
-                  <DashboardScreen onGo={handlePageChange} />
+                  <DashboardScreen
+                    onGo={handlePageChange}
+                    refreshTick={refreshTick}
+                  />
                 )}
                 {page === "invDetail" && (
                   <InvoiceDetailScreen

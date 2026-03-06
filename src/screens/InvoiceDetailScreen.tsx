@@ -312,7 +312,7 @@ export function InvoiceDetailScreen({
                         {new Date(payment.payment_date).toLocaleDateString()}
                       </Text>
                     </View>
-                    <Text style={styles.amount}>
+                    <Text style={[styles.amount, { marginRight: 8 }]}>
                       {formatMoney(payment.amount)}
                     </Text>
 
