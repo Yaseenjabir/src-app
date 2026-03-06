@@ -1,13 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  Animated,
-  Easing,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { createCustomerApi, listCustomersApi } from "../api/customers";
 import { addInvoicePaymentApi, createInvoiceApi } from "../api/invoices";
 import { listProductsApi } from "../api/products";
@@ -40,11 +33,14 @@ export function NewInvoiceScreen({
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>(
     [],
   );
+  const [isCustomerInputActive, setIsCustomerInputActive] = useState(false);
+  const [selectedCustomerLabel, setSelectedCustomerLabel] = useState("");
   const [isCustomerLoading, setIsCustomerLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productQuery, setProductQuery] = useState("");
+  const [productSuggestions, setProductSuggestions] = useState<Product[]>([]);
+  const [showProductSuggestions, setShowProductSuggestions] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [isProductPickerOpen, setIsProductPickerOpen] = useState(false);
-  const productPickerAnim = useRef(new Animated.Value(0)).current;
 
   const [status, setStatus] = useState<"unpaid" | "partial" | "completed">(
     "unpaid",
@@ -82,24 +78,18 @@ export function NewInvoiceScreen({
   useEffect(() => {
     if (!token) return;
 
-    if (selectedCustomerId) {
+    if (!isCustomerInputActive) {
       setCustomerSuggestions([]);
       setIsCustomerLoading(false);
       return;
     }
 
     const trimmed = customerQuery.trim();
-    if (!trimmed) {
-      setCustomerSuggestions([]);
-      setIsCustomerLoading(false);
-      return;
-    }
-
     setIsCustomerLoading(true);
     const timer = setTimeout(async () => {
       try {
         const response = await listCustomersApi(token, {
-          q: trimmed,
+          q: trimmed || undefined,
           isActive: true,
           page: 1,
           limit: 8,
@@ -113,15 +103,23 @@ export function NewInvoiceScreen({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [customerQuery, token, selectedCustomerId]);
+  }, [customerQuery, token, isCustomerInputActive]);
 
-  const selectedCustomer = useMemo(
-    () =>
-      customerSuggestions.find(
-        (customer) => customer._id === selectedCustomerId,
-      ),
-    [customerSuggestions, selectedCustomerId],
-  );
+  useEffect(() => {
+    if (!showProductSuggestions) {
+      setProductSuggestions([]);
+      return;
+    }
+
+    const query = productQuery.trim().toLowerCase();
+    const filtered = products.filter((product) => {
+      const byName = product.name.toLowerCase().includes(query);
+      const bySku = product.sku.toLowerCase().includes(query);
+      return byName || bySku;
+    });
+
+    setProductSuggestions(filtered.slice(0, 20));
+  }, [products, productQuery, showProductSuggestions]);
 
   const itemRows = useMemo(() => {
     return lineItems.map((row) => {
@@ -168,8 +166,9 @@ export function NewInvoiceScreen({
       { productId: draftProductId, quantity: String(qty) },
     ]);
     setDraftProductId("");
+    setProductQuery("");
     setDraftQuantity("1");
-    closeProductPicker();
+    setShowProductSuggestions(false);
     setScreenError(null);
   };
 
@@ -181,33 +180,6 @@ export function NewInvoiceScreen({
     const current = Math.max(parseInt(draftQuantity || "0", 10) || 0, 0);
     const next = Math.max(current + delta, 1);
     setDraftQuantity(String(next));
-  };
-
-  const closeProductPicker = () => {
-    Animated.timing(productPickerAnim, {
-      toValue: 0,
-      duration: 140,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      setIsProductPickerOpen(false);
-    });
-  };
-
-  const toggleProductPicker = () => {
-    if (isProductPickerOpen) {
-      closeProductPicker();
-      return;
-    }
-
-    setIsProductPickerOpen(true);
-    productPickerAnim.setValue(0);
-    Animated.timing(productPickerAnim, {
-      toValue: 1,
-      duration: 180,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
   };
 
   const submit = async () => {
@@ -276,8 +248,10 @@ export function NewInvoiceScreen({
 
         customerIdToUse = createdCustomer._id;
         setSelectedCustomerId(createdCustomer._id);
+        setSelectedCustomerLabel(createdCustomer.name);
         setCustomerSuggestions((prev) => [createdCustomer, ...prev]);
         setCustomerQuery(createdCustomer.name);
+        setIsCustomerInputActive(false);
       }
 
       const createdInvoice = await createInvoiceApi(token, {
@@ -332,7 +306,10 @@ export function NewInvoiceScreen({
           onChangeText={(value) => {
             setCustomerQuery(value);
             setSelectedCustomerId("");
+            setSelectedCustomerLabel("");
+            setIsCustomerInputActive(true);
           }}
+          onFocus={() => setIsCustomerInputActive(true)}
           style={styles.formInput}
           placeholder="Type customer name"
           placeholderTextColor="#9aa3b2"
@@ -340,7 +317,7 @@ export function NewInvoiceScreen({
 
         {isCustomerLoading ? <Loader compact /> : null}
 
-        {customerSuggestions.length > 0 && !selectedCustomerId ? (
+        {customerSuggestions.length > 0 && isCustomerInputActive ? (
           <View style={styles.inlineSuggestionsCard}>
             {customerSuggestions.map((customer, index) => (
               <TouchableOpacity
@@ -351,9 +328,11 @@ export function NewInvoiceScreen({
                 ]}
                 onPress={() => {
                   setSelectedCustomerId(customer._id);
+                  setSelectedCustomerLabel(customer.name);
                   setCustomerQuery(customer.name);
                   setCustomerSuggestions([]);
                   setIsCustomerLoading(false);
+                  setIsCustomerInputActive(false);
                 }}
               >
                 <Text style={styles.suggestionText}>{customer.name}</Text>
@@ -368,9 +347,9 @@ export function NewInvoiceScreen({
           </Text>
         ) : null}
 
-        {selectedCustomer ? (
+        {selectedCustomerId && selectedCustomerLabel ? (
           <Text style={styles.badgePaid}>
-            Selected: {selectedCustomer.name}
+            Selected: {selectedCustomerLabel}
           </Text>
         ) : null}
       </View>
@@ -378,44 +357,38 @@ export function NewInvoiceScreen({
       <Text style={styles.sec}>LINE ITEMS</Text>
       <Card>
         <View style={styles.formRow}>
-          <TouchableOpacity
-            style={styles.formInputBox}
-            onPress={toggleProductPicker}
-          >
-            <Text style={styles.formValue}>
-              {draftProduct
-                ? `${draftProduct.name} (${draftProduct.sku})`
-                : "— Select Product —"}
-            </Text>
-          </TouchableOpacity>
+          <TextInput
+            value={productQuery}
+            onFocus={() => setShowProductSuggestions(true)}
+            onChangeText={(value) => {
+              setProductQuery(value);
+              setDraftProductId("");
+              setShowProductSuggestions(true);
+            }}
+            style={styles.formInput}
+            placeholder="Search product"
+            placeholderTextColor="#9aa3b2"
+          />
 
-          {isProductPickerOpen ? (
-            <Animated.View
-              style={[
-                styles.inlineSuggestionsCard,
-                {
-                  opacity: productPickerAnim,
-                  transform: [
-                    {
-                      translateY: productPickerAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-6, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              {products.map((product, pIndex) => (
+          {showProductSuggestions ? (
+            <View style={styles.inlineSuggestionsCard}>
+              {productSuggestions.length === 0 ? (
+                <View style={[styles.suggestionItem, styles.noBorder]}>
+                  <Text style={styles.itemSub}>No products found.</Text>
+                </View>
+              ) : null}
+
+              {productSuggestions.map((product, pIndex) => (
                 <TouchableOpacity
                   key={product._id}
                   style={[
                     styles.suggestionItem,
-                    pIndex === products.length - 1 && styles.noBorder,
+                    pIndex === productSuggestions.length - 1 && styles.noBorder,
                   ]}
                   onPress={() => {
                     setDraftProductId(product._id);
-                    closeProductPicker();
+                    setProductQuery(`${product.name} (${product.sku})`);
+                    setShowProductSuggestions(false);
                   }}
                 >
                   <Text style={styles.suggestionText}>{product.name}</Text>
@@ -424,7 +397,7 @@ export function NewInvoiceScreen({
                   </Text>
                 </TouchableOpacity>
               ))}
-            </Animated.View>
+            </View>
           ) : null}
 
           <View style={styles.formRow3}>
