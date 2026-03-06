@@ -277,7 +277,7 @@ export function NewInvoiceScreen({
         customerIdToUse = createdCustomer._id;
         setSelectedCustomerId(createdCustomer._id);
         setCustomerSuggestions((prev) => [createdCustomer, ...prev]);
-        setCustomerQuery(createdCustomer.shop_name || createdCustomer.name);
+        setCustomerQuery(createdCustomer.name);
       }
 
       const createdInvoice = await createInvoiceApi(token, {
@@ -351,14 +351,12 @@ export function NewInvoiceScreen({
                 ]}
                 onPress={() => {
                   setSelectedCustomerId(customer._id);
-                  setCustomerQuery(customer.shop_name || customer.name);
+                  setCustomerQuery(customer.name);
                   setCustomerSuggestions([]);
                   setIsCustomerLoading(false);
                 }}
               >
-                <Text style={styles.suggestionText}>
-                  {customer.shop_name || customer.name}
-                </Text>
+                <Text style={styles.suggestionText}>{customer.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -372,7 +370,7 @@ export function NewInvoiceScreen({
 
         {selectedCustomer ? (
           <Text style={styles.badgePaid}>
-            Selected: {selectedCustomer.shop_name || selectedCustomer.name}
+            Selected: {selectedCustomer.name}
           </Text>
         ) : null}
       </View>
@@ -512,7 +510,9 @@ export function NewInvoiceScreen({
                 </Text>
               </View>
 
-              <Text style={styles.amount}>{formatMoney(row.lineTotal)}</Text>
+              <Text style={[styles.amount, { marginRight: 8 }]}>
+                {formatMoney(row.lineTotal)}
+              </Text>
 
               <TouchableOpacity
                 style={styles.customerIconBtnDanger}

@@ -1,5 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Text, TouchableOpacity, View } from "react-native";
+import {
+  Text,
+  TouchableOpacity,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import type { Page } from "../types/navigation";
 import { useAppTheme } from "../theme/AppThemeContext";
 
@@ -20,6 +26,7 @@ export function BottomTabs({
         iconOutline="home-outline"
         active={current === "dashboard"}
         onPress={() => onGo("dashboard")}
+        style={styles.homeTabAdjust}
       />
       <Tab
         label="Products"
@@ -76,17 +83,19 @@ function Tab({
   iconOutline,
   active,
   onPress,
+  style,
 }: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   iconOutline: keyof typeof Ionicons.glyphMap;
   active: boolean;
   onPress: () => void;
+  style?: StyleProp<ViewStyle>;
 }) {
   const { mode, styles } = useAppTheme();
 
   return (
-    <TouchableOpacity style={styles.tab} onPress={onPress}>
+    <TouchableOpacity style={[styles.tab, style]} onPress={onPress}>
       <Ionicons
         name={active ? icon : iconOutline}
         size={18}

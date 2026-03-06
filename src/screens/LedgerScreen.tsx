@@ -97,7 +97,7 @@ export function LedgerScreen({
             >
               <Text style={[styles.itemTitle, { flex: 0.35 }]}>{idx + 1}</Text>
               <Text style={[styles.itemTitle, { flex: 1.5 }]} numberOfLines={1}>
-                {customer.shop_name || customer.name}
+                {customer.name}
               </Text>
 
               <TouchableOpacity

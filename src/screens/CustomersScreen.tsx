@@ -275,9 +275,7 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
               ]}
             >
               <View style={styles.itemMain}>
-                <Text style={styles.itemTitle}>
-                  {customer.shop_name || customer.name}
-                </Text>
+                <Text style={styles.itemTitle}>{customer.name}</Text>
                 <Text style={styles.itemSub}>
                   {customer.address || customer.phone || "No details"}
                 </Text>

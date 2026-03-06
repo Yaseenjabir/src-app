@@ -360,7 +360,7 @@ export function PaymentsScreen({
               >
                 <View style={styles.itemMain}>
                   <Text style={styles.itemTitle}>
-                    {customerNameFromRef(customerRef)}
+                    {customerRef?.name || customerRef?.shop_name || "Customer"}
                   </Text>
                   <Text style={styles.itemSub}>
                     {invoiceRef?.invoice_no || "Invoice"} · {payment.method}

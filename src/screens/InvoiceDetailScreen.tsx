@@ -336,7 +336,10 @@ export function InvoiceDetailScreen({
           <Text style={styles.sec}>RECORD PAYMENT</Text>
           {!isPaymentPanelOpen ? (
             <TouchableOpacity
-              style={styles.cta}
+              style={[
+                styles.cta,
+                invoice.remaining_amount <= 0 && styles.ctaDisabled,
+              ]}
               onPress={() => {
                 setIsPaymentPanelOpen(true);
                 setPaymentAmount(String(Math.max(invoice.remaining_amount, 0)));

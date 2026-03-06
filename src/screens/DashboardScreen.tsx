@@ -81,6 +81,13 @@ export function DashboardScreen({
     [],
   );
 
+  const greetingText = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning 👋";
+    if (hour < 17) return "Good afternoon 👋";
+    return "Good evening 👋";
+  }, []);
+
   const topOverdueName = summary.top_overdue_customer
     ? summary.top_overdue_customer.shop_name ||
       summary.top_overdue_customer.customer_name ||
@@ -92,7 +99,7 @@ export function DashboardScreen({
       <AppHeader />
 
       <View style={styles.hero}>
-        <Text style={styles.heroMuted}>Good morning 👋</Text>
+        <Text style={styles.heroMuted}>{greetingText}</Text>
         <Text style={styles.heroTitle}>{user?.name || "SRC Admin"}</Text>
         <Text style={styles.heroMeta}>{todayText}</Text>
       </View>

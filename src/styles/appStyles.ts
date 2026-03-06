@@ -321,6 +321,12 @@ export function createAppStyles(mode: ThemeMode) {
     itemTitle: { color: c.text, fontSize: 13, fontWeight: "700" },
     itemSub: { color: c.muted, fontSize: 11, marginTop: 2 },
     itemRight: { alignItems: "flex-end" },
+    tableColDivider: {
+      borderRightWidth: 1,
+      borderRightColor: c.borderStrong,
+      paddingRight: 6,
+      marginRight: 6,
+    },
     amount: { color: c.text, fontSize: 14, fontWeight: "700" },
     amountSuccess: { color: c.success, fontSize: 13, fontWeight: "800" },
     amountDanger: { color: c.unpaid, fontSize: 13, fontWeight: "800" },
@@ -595,6 +601,9 @@ export function createAppStyles(mode: ThemeMode) {
       paddingVertical: 15,
       alignItems: "center",
     },
+    ctaDisabled: {
+      backgroundColor: "#8f96a3",
+    },
     ctaText: { color: "#fff", fontSize: 15, fontWeight: "800" },
     tabBar: {
       height: 74,
@@ -606,6 +615,9 @@ export function createAppStyles(mode: ThemeMode) {
       paddingBottom: 8,
     },
     tab: { flex: 1, alignItems: "center" },
+    homeTabAdjust: {
+      transform: [{ translateX: 3 }],
+    },
     tabIcon: { marginBottom: 3 },
     tabText: { color: c.tabInactive, fontSize: 10, fontWeight: "700" },
     tabActive: { color: c.danger },

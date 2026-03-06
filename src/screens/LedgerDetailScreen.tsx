@@ -7,7 +7,7 @@ import { BoxIcon, Card, Loader } from "../components/common";
 import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 import type { Customer, Invoice } from "../types/entities";
-import { formatMoney, statusLabel } from "../utils/format";
+import { formatMoney } from "../utils/format";
 
 export function LedgerDetailScreen({
   customer,
@@ -18,7 +18,7 @@ export function LedgerDetailScreen({
   onBack: () => void;
   refreshTick?: number;
 }) {
-  const { styles, badgeStyle } = useAppTheme();
+  const { styles } = useAppTheme();
   const { showToast } = useToast();
   const { token } = useAuth();
 
@@ -64,6 +64,36 @@ export function LedgerDetailScreen({
     return { totalAmount, receivable, remaining };
   }, [items]);
 
+  const ledgerRows = useMemo(() => {
+    return items.flatMap((inv) => {
+      const invoiceItems = (
+        inv as Invoice & {
+          items?: Array<{
+            product_name_snapshot?: string;
+            quantity?: number;
+            unit_price_snapshot?: number;
+            line_total?: number;
+          }>;
+        }
+      ).items;
+
+      if (!invoiceItems?.length) return [];
+
+      return invoiceItems.map((item) => {
+        const qty = Math.max(item.quantity ?? 0, 0);
+        const unitPrice = Math.max(item.unit_price_snapshot ?? 0, 0);
+        const computedTotal = qty * unitPrice;
+
+        return {
+          productName: item.product_name_snapshot || "-",
+          quantity: qty,
+          unitPrice,
+          totalPrice: computedTotal || Math.max(item.line_total ?? 0, 0),
+        };
+      });
+    });
+  }, [items]);
+
   return (
     <>
       <AppHeader>
@@ -72,14 +102,39 @@ export function LedgerDetailScreen({
         </TouchableOpacity>
       </AppHeader>
 
-      <Text style={styles.sec}>LEDGER DETAILS</Text>
-      <View style={styles.heroCard}>
-        <Text style={styles.itemTitle}>
-          {customer?.shop_name || customer?.name || "Customer"}
-        </Text>
-        <Text style={styles.itemSub}>
-          {customer?.phone || customer?.address || "-"}
-        </Text>
+      <Text style={styles.sec}>LEDGER ITEMS</Text>
+      <View style={[styles.heroCard, { marginBottom: 12 }]}>
+        <Text style={styles.itemTitle}>{customer?.name || "Customer"}</Text>
+        {customer?.shop_name ? (
+          <Text style={styles.itemSub}>
+            <Text style={{ fontWeight: "700" }}>Shop: </Text>
+            {customer.shop_name}
+          </Text>
+        ) : null}
+        {customer?.phone ? (
+          <Text style={styles.itemSub}>
+            <Text style={{ fontWeight: "700" }}>Phone: </Text>
+            {customer.phone}
+          </Text>
+        ) : null}
+        {customer?.address ? (
+          <Text style={styles.itemSub}>
+            <Text style={{ fontWeight: "700" }}>Address: </Text>
+            {customer.address}
+          </Text>
+        ) : null}
+        {customer?.notes ? (
+          <Text style={styles.itemSub}>
+            <Text style={{ fontWeight: "700" }}>Notes: </Text>
+            {customer.notes}
+          </Text>
+        ) : null}
+        {!customer?.shop_name &&
+        !customer?.phone &&
+        !customer?.address &&
+        !customer?.notes ? (
+          <Text style={styles.itemSub}>-</Text>
+        ) : null}
       </View>
 
       <Card>
@@ -91,62 +146,136 @@ export function LedgerDetailScreen({
           </View>
         ) : null}
 
-        {!isLoading && !error && items.length === 0 ? (
+        {!isLoading && !error && ledgerRows.length === 0 ? (
           <View style={styles.listItem}>
-            <Text style={styles.itemSub}>
-              No invoices found for this customer.
-            </Text>
+            <Text style={styles.itemSub}>No product entries found.</Text>
           </View>
         ) : null}
 
-        {!isLoading &&
-          !error &&
-          items.map((inv, idx) => (
-            <View
-              key={inv._id}
-              style={[
-                styles.listItem,
-                idx === items.length - 1 && styles.noBorder,
-              ]}
-            >
-              <View style={styles.itemMain}>
-                <Text style={styles.itemTitle}>{inv.invoice_no}</Text>
-                <Text style={styles.itemSub}>
-                  Total: {formatMoney(inv.total_amount)} · Remaining:{" "}
-                  {formatMoney(inv.remaining_amount)}
-                </Text>
-              </View>
-              <Text style={badgeStyle(statusLabel(inv.status))}>
-                {statusLabel(inv.status)}
+        {!isLoading && !error && ledgerRows.length > 0 ? (
+          <>
+            <View style={styles.listItem}>
+              <Text
+                style={[
+                  styles.itemSub,
+                  { flex: 0.4, fontWeight: "700" },
+                  styles.tableColDivider,
+                ]}
+              ></Text>
+              <Text
+                style={[
+                  styles.itemSub,
+                  { flex: 1.5, fontWeight: "700" },
+                  styles.tableColDivider,
+                ]}
+              >
+                Product
+              </Text>
+              <Text
+                style={[
+                  styles.itemSub,
+                  { flex: 0.6, textAlign: "center", fontWeight: "700" },
+                  styles.tableColDivider,
+                ]}
+              >
+                Qty
+              </Text>
+              <Text
+                style={[
+                  styles.itemSub,
+                  { flex: 0.9, textAlign: "right", fontWeight: "700" },
+                  styles.tableColDivider,
+                ]}
+              >
+                Price
+              </Text>
+              <Text
+                style={[
+                  styles.itemSub,
+                  { flex: 1, textAlign: "right", fontWeight: "700" },
+                ]}
+              >
+                Total
               </Text>
             </View>
-          ))}
-      </Card>
 
-      <Text style={styles.sec}>SUMMARY</Text>
-      <Card>
-        <View style={styles.listItem}>
-          <View style={styles.itemMain}>
-            <Text style={styles.itemTitle}>Combined Invoice Amount</Text>
-          </View>
-          <Text style={styles.amount}>{formatMoney(totals.totalAmount)}</Text>
-        </View>
-        <View style={styles.listItem}>
-          <View style={styles.itemMain}>
-            <Text style={styles.itemTitle}>Overall Receivable</Text>
-          </View>
-          <Text style={styles.amountSuccess}>
-            {formatMoney(totals.receivable)}
-          </Text>
-        </View>
-        <View style={[styles.listItem, styles.noBorder]}>
-          <View style={styles.itemMain}>
-            <Text style={styles.itemTitle}>Overall Remaining</Text>
-          </View>
-          <Text style={styles.amountDanger}>
-            {formatMoney(totals.remaining)}
-          </Text>
-        </View>
+            {ledgerRows.map((row, idx) => (
+              <View key={`${row.productName}-${idx}`} style={styles.listItem}>
+                <Text
+                  style={[
+                    styles.itemTitle,
+                    { flex: 0.4 },
+                    styles.tableColDivider,
+                  ]}
+                >
+                  {idx + 1}
+                </Text>
+                <Text
+                  style={[
+                    styles.itemTitle,
+                    { flex: 1.5 },
+                    styles.tableColDivider,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {row.productName}
+                </Text>
+                <Text
+                  style={[
+                    styles.itemSub,
+                    { flex: 0.6, textAlign: "center" },
+                    styles.tableColDivider,
+                  ]}
+                >
+                  {row.quantity}
+                </Text>
+                <Text
+                  style={[
+                    styles.amount,
+                    { flex: 0.9, textAlign: "right" },
+                    styles.tableColDivider,
+                  ]}
+                >
+                  {row.unitPrice.toLocaleString()}
+                </Text>
+                <Text style={[styles.amount, { flex: 1, textAlign: "right" }]}>
+                  {row.totalPrice.toLocaleString()}
+                </Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        {!isLoading && !error ? (
+          <>
+            <View style={styles.listItem}>
+              <Text style={[styles.itemSub, { fontWeight: "700" }]}>
+                SUMMARY
+              </Text>
+            </View>
+
+            <View style={styles.listItem}>
+              <Text style={[styles.itemTitle, { flex: 1 }]}>Total</Text>
+              <Text style={[styles.amount, { textAlign: "right" }]}>
+                {formatMoney(totals.totalAmount)}
+              </Text>
+            </View>
+
+            <View style={styles.listItem}>
+              <Text style={[styles.itemTitle, { flex: 1 }]}>Received</Text>
+              <Text style={[styles.amountSuccess, { textAlign: "right" }]}>
+                {formatMoney(totals.receivable)}
+              </Text>
+            </View>
+
+            <View style={[styles.listItem, styles.noBorder]}>
+              <Text style={[styles.itemTitle, { flex: 1 }]}>Remaining</Text>
+              <Text style={[styles.amountDanger, { textAlign: "right" }]}>
+                {formatMoney(totals.remaining)}
+              </Text>
+            </View>
+          </>
+        ) : null}
       </Card>
     </>
   );
