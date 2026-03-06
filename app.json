@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SRC Electronics",
-    "slug": "SRC Electronics",
+    "slug": "src-electronics",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
@@ -21,10 +21,16 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.yaseenjabir791.srcelectronics"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7d4d8ee8-2828-44ee-83d2-41f6ce2134c4"
+      }
     }
   }
 }
