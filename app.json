@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
+    "name": "SRC Electronics",
+    "slug": "SRC Electronics",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",

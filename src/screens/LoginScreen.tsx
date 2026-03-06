@@ -3,7 +3,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Image,
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -11,7 +10,6 @@ import {
 } from "react-native";
 import { ApiError } from "../api/http";
 import { useAuth } from "../auth/AuthContext";
-import { API_BASE_URL } from "../config/env";
 import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 
@@ -21,31 +19,17 @@ export function LoginScreen() {
   const { login, isLoggingIn, authError } = useAuth();
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("test12345");
-  const [debugLogs, setDebugLogs] = useState<string[]>([
-    `API: ${API_BASE_URL}`,
-  ]);
-
-  const pushLog = (line: string) => {
-    const stamp = new Date().toLocaleTimeString();
-    setDebugLogs((prev) => [`[${stamp}] ${line}`, ...prev].slice(0, 8));
-  };
 
   const submit = async () => {
-    pushLog(`Login attempt: ${email.trim()}`);
-
     try {
       await login(email.trim(), password);
-      pushLog("Login success");
       showToast("Login successful.", "success");
     } catch (error) {
       if (error instanceof ApiError) {
-        pushLog(`Failed ${error.status} ${error.code}: ${error.message}`);
         showToast(error.message, "error");
       } else if (error instanceof Error) {
-        pushLog(`Failed: ${error.message}`);
         showToast(error.message, "error");
       } else {
-        pushLog("Failed: unknown error");
         showToast("Login failed.", "error");
       }
     }
@@ -103,17 +87,6 @@ export function LoginScreen() {
             </>
           )}
         </TouchableOpacity>
-
-        <View style={styles.loginDebugBox}>
-          <Text style={styles.loginDebugTitle}>Debug Log</Text>
-          <ScrollView style={{ maxHeight: 120 }}>
-            {debugLogs.map((line, index) => (
-              <Text key={`${index}-${line}`} style={styles.loginDebugText}>
-                {line}
-              </Text>
-            ))}
-          </ScrollView>
-        </View>
       </View>
     </View>
   );
