@@ -88,16 +88,27 @@ export function LedgerDetailScreen({
     return { totalAmount, receivable, remaining };
   }, [items]);
 
-  const ledgerRows = useMemo(() => {
-    const rows: Array<{
-      id: string;
+  const ledgerGroups = useMemo(() => {
+    const groups: Array<{
+      invoiceId: string;
       invoiceNo: string;
-      paymentDate: string;
-      credit: number;
-      balance: number;
+      rows: Array<{
+        id: string;
+        paymentDate: string;
+        credit: number;
+        balance: number;
+        isSnapshot?: boolean;
+      }>;
     }> = [];
 
-    for (const inv of items) {
+    const sortedInvoices = [...items].sort((a, b) => {
+      const dateDiff =
+        new Date(a.invoice_date).getTime() - new Date(b.invoice_date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return a.invoice_no.localeCompare(b.invoice_no);
+    });
+
+    for (const inv of sortedInvoices) {
       const payments = [...(invoicePaymentsMap[inv._id] || [])].sort((a, b) => {
         const dateDiff =
           new Date(a.payment_date).getTime() -
@@ -107,30 +118,50 @@ export function LedgerDetailScreen({
       });
 
       let runningBalance = Math.max(inv.total_amount || 0, 0);
-
-      for (const payment of payments) {
-        const credit = Math.max(payment.amount || 0, 0);
-        runningBalance = Math.max(runningBalance - credit, 0);
-
-        rows.push({
-          id: payment._id,
-          invoiceNo: inv.invoice_no,
-          paymentDate: payment.payment_date,
-          credit,
+      const rows: Array<{
+        id: string;
+        paymentDate: string;
+        credit: number;
+        balance: number;
+        isSnapshot?: boolean;
+      }> = [
+        {
+          id: `snapshot-${inv._id}`,
+          paymentDate: inv.invoice_date,
+          credit: 0,
           balance: runningBalance,
-        });
-      }
+          isSnapshot: true,
+        },
+      ];
+
+      rows.push(
+        ...payments.map((payment) => {
+          const credit = Math.max(payment.amount || 0, 0);
+          runningBalance = Math.max(runningBalance - credit, 0);
+
+          return {
+            id: payment._id,
+            paymentDate: payment.payment_date,
+            credit,
+            balance: runningBalance,
+          };
+        }),
+      );
+
+      groups.push({
+        invoiceId: inv._id,
+        invoiceNo: inv.invoice_no,
+        rows,
+      });
     }
 
-    rows.sort((a, b) => {
-      const dateDiff =
-        new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime();
-      if (dateDiff !== 0) return dateDiff;
-      return a.id.localeCompare(b.id);
-    });
-
-    return rows;
+    return groups;
   }, [items, invoicePaymentsMap]);
+
+  const totalLedgerRows = useMemo(
+    () => ledgerGroups.reduce((sum, group) => sum + group.rows.length, 0),
+    [ledgerGroups],
+  );
 
   return (
     <>
@@ -184,15 +215,15 @@ export function LedgerDetailScreen({
           </View>
         ) : null}
 
-        {!isLoading && !error && ledgerRows.length === 0 ? (
+        {!isLoading && !error && totalLedgerRows === 0 ? (
           <View style={styles.listItem}>
             <Text style={styles.itemSub}>
-              No payments found for this customer.
+              No invoices found for this customer.
             </Text>
           </View>
         ) : null}
 
-        {!isLoading && !error && ledgerRows.length > 0 ? (
+        {!isLoading && !error && totalLedgerRows > 0 ? (
           <>
             <View style={styles.listItem}>
               <Text
@@ -201,9 +232,7 @@ export function LedgerDetailScreen({
                   { flex: 0.4, fontWeight: "700" },
                   styles.tableColDivider,
                 ]}
-              >
-                S.No
-              </Text>
+              ></Text>
               <Text
                 style={[
                   styles.itemSub,
@@ -241,56 +270,76 @@ export function LedgerDetailScreen({
               </Text>
             </View>
 
-            {ledgerRows.map((row, idx) => (
-              <View key={row.id} style={styles.listItem}>
-                <Text
-                  style={[
-                    styles.itemTitle,
-                    { flex: 0.4 },
-                    styles.tableColDivider,
-                  ]}
-                >
-                  {idx + 1}
-                </Text>
-                <Text
-                  style={[
-                    styles.itemTitle,
-                    { flex: 1.1 },
-                    styles.tableColDivider,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {row.invoiceNo}
-                </Text>
-                <Text
-                  style={[
-                    styles.itemSub,
-                    { flex: 1.1 },
-                    styles.tableColDivider,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {new Date(row.paymentDate).toLocaleDateString()}
-                </Text>
-                <Text
-                  style={[
-                    styles.amountSuccess,
-                    { flex: 0.9, textAlign: "right" },
-                    styles.tableColDivider,
-                  ]}
-                >
-                  {row.credit.toLocaleString()}
-                </Text>
-                <Text
-                  style={[
-                    styles.amountDanger,
-                    { flex: 0.9, textAlign: "right" },
-                  ]}
-                >
-                  {row.balance.toLocaleString()}
-                </Text>
-              </View>
-            ))}
+            {(() => {
+              let serial = 0;
+
+              return ledgerGroups.map((group) => (
+                <View key={group.invoiceId} style={styles.ledgerGroupCard}>
+                  {group.rows.map((row, idx) => {
+                    serial += 1;
+
+                    return (
+                      <View
+                        key={row.id}
+                        style={[
+                          styles.listItem,
+                          idx === group.rows.length - 1 && styles.noBorder,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.itemTitle,
+                            { flex: 0.4 },
+                            styles.tableColDivider,
+                          ]}
+                        >
+                          {serial}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.itemTitle,
+                            { flex: 1.1 },
+                            styles.tableColDivider,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {group.invoiceNo}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.itemSub,
+                            { flex: 1.1 },
+                            styles.tableColDivider,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {new Date(row.paymentDate).toLocaleDateString()}
+                        </Text>
+                        <Text
+                          style={[
+                            row.isSnapshot
+                              ? styles.amount
+                              : styles.amountSuccess,
+                            { flex: 0.9, textAlign: "right" },
+                            styles.tableColDivider,
+                          ]}
+                        >
+                          {row.credit.toLocaleString()}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.amountDanger,
+                            { flex: 0.9, textAlign: "right" },
+                          ]}
+                        >
+                          {row.balance.toLocaleString()}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ));
+            })()}
           </>
         ) : null}
 
