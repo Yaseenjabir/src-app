@@ -29,6 +29,7 @@ export type Invoice = {
         name?: string;
         shop_name?: string;
         phone?: string;
+        address?: string;
       };
   invoice_date: string;
   total_amount: number;

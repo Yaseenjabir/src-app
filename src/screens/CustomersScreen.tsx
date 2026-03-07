@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
 import {
   createCustomerApi,
@@ -34,6 +34,19 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   const [actionCustomerId, setActionCustomerId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return items;
+
+    return items.filter((customer) => {
+      const name = customer.name?.toLowerCase() || "";
+      const shop = customer.shop_name?.toLowerCase() || "";
+      const location = customer.address?.toLowerCase() || "";
+      return name.includes(q) || shop.includes(q) || location.includes(q);
+    });
+  }, [items, searchQuery]);
 
   const resetForm = () => {
     setEditingCustomerId(null);
@@ -249,6 +262,17 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
         </Card>
       ) : null}
 
+      <View style={styles.formSection}>
+        <Text style={styles.formLabel}>Search Customer</Text>
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={styles.formInput}
+          placeholder="Search by name, shop or location"
+          placeholderTextColor="#9aa3b2"
+        />
+      </View>
+
       <Card>
         {isLoading ? <Loader /> : null}
 
@@ -258,20 +282,20 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
           </View>
         ) : null}
 
-        {!isLoading && !error && items.length === 0 ? (
+        {!isLoading && !error && filteredItems.length === 0 ? (
           <View style={styles.listItem}>
-            <Text style={styles.itemSub}>No customers found.</Text>
+            <Text style={styles.itemSub}>No matching customers found.</Text>
           </View>
         ) : null}
 
         {!isLoading &&
           !error &&
-          items.map((customer, index) => (
+          filteredItems.map((customer, index) => (
             <View
               key={customer._id}
               style={[
                 styles.listItem,
-                index === items.length - 1 && styles.noBorder,
+                index === filteredItems.length - 1 && styles.noBorder,
               ]}
             >
               <View style={styles.itemMain}>

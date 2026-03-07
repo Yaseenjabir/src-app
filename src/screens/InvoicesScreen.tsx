@@ -1,5 +1,11 @@
-import { useEffect, useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { listInvoicesApi } from "../api/invoices";
 import { useAuth } from "../auth/AuthContext";
 import type { Page } from "../types/navigation";
@@ -38,6 +44,20 @@ export function InvoicesScreen({
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return items;
+
+    return items.filter((inv) => {
+      const customer =
+        typeof inv.customer_id === "string"
+          ? ""
+          : `${inv.customer_id.name || ""} ${inv.customer_id.shop_name || ""} ${inv.customer_id.address || ""}`.toLowerCase();
+      return customer.includes(q);
+    });
+  }, [items, searchQuery]);
 
   useEffect(() => {
     const load = async () => {
@@ -114,6 +134,17 @@ export function InvoicesScreen({
         ))}
       </ScrollView>
 
+      <View style={styles.formSection}>
+        <Text style={styles.formLabel}>Search Customer</Text>
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={styles.formInput}
+          placeholder="Search by name, shop or location"
+          placeholderTextColor="#9aa3b2"
+        />
+      </View>
+
       <SectionTitle title="Invoice List" />
       <Card>
         {isLoading ? <Loader /> : null}
@@ -124,20 +155,20 @@ export function InvoicesScreen({
           </View>
         ) : null}
 
-        {!isLoading && !error && items.length === 0 ? (
+        {!isLoading && !error && filteredItems.length === 0 ? (
           <View style={styles.listItem}>
-            <Text style={styles.itemSub}>No invoices found.</Text>
+            <Text style={styles.itemSub}>No matching invoices found.</Text>
           </View>
         ) : null}
 
         {!isLoading &&
           !error &&
-          items.map((inv, idx) => (
+          filteredItems.map((inv, idx) => (
             <TouchableOpacity
               key={inv._id}
               style={[
                 styles.listItem,
-                idx === items.length - 1 && styles.noBorder,
+                idx === filteredItems.length - 1 && styles.noBorder,
               ]}
               onPress={() => onOpenInvoice(inv._id)}
             >

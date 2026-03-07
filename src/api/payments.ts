@@ -26,6 +26,7 @@ export type PaymentListItem = {
               name?: string;
               shop_name?: string;
               phone?: string;
+              address?: string;
             };
       };
 };

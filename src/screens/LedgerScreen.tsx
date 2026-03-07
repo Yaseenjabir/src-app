@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { listCustomersApi } from "../api/customers";
 import { useAuth } from "../auth/AuthContext";
 import { AppHeader } from "../components/AppHeader";
@@ -21,8 +21,21 @@ export function LedgerScreen({
   const { token } = useAuth();
 
   const [items, setItems] = useState<Customer[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return items;
+
+    return items.filter((customer) => {
+      const name = customer.name?.toLowerCase() || "";
+      const shop = customer.shop_name?.toLowerCase() || "";
+      const location = customer.address?.toLowerCase() || "";
+      return name.includes(q) || shop.includes(q) || location.includes(q);
+    });
+  }, [items, searchQuery]);
 
   useEffect(() => {
     const load = async () => {
@@ -53,6 +66,17 @@ export function LedgerScreen({
       <AppHeader />
 
       <Text style={styles.sec}>LEDGER</Text>
+      <View style={styles.formSection}>
+        <Text style={styles.formLabel}>Search Customer</Text>
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={styles.formInput}
+          placeholder="Search by name, shop or location"
+          placeholderTextColor="#9aa3b2"
+        />
+      </View>
+
       <Card>
         <View style={styles.listItem}>
           <Text style={[styles.itemSub, { flex: 0.35, fontWeight: "700" }]}>
@@ -79,20 +103,20 @@ export function LedgerScreen({
           </View>
         ) : null}
 
-        {!isLoading && !error && items.length === 0 ? (
+        {!isLoading && !error && filteredItems.length === 0 ? (
           <View style={styles.listItem}>
-            <Text style={styles.itemSub}>No customers found.</Text>
+            <Text style={styles.itemSub}>No matching customers found.</Text>
           </View>
         ) : null}
 
         {!isLoading &&
           !error &&
-          items.map((customer, idx) => (
+          filteredItems.map((customer, idx) => (
             <View
               key={customer._id}
               style={[
                 styles.listItem,
-                idx === items.length - 1 && styles.noBorder,
+                idx === filteredItems.length - 1 && styles.noBorder,
               ]}
             >
               <Text style={[styles.itemTitle, { flex: 0.35 }]}>{idx + 1}</Text>

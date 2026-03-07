@@ -34,6 +34,7 @@ export function PaymentsScreen({
   const [items, setItems] = useState<PaymentListItem[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [activeFilter, setActiveFilter] = useState<MethodFilter>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +52,24 @@ export function PaymentsScreen({
     () => invoices.find((invoice) => invoice._id === selectedInvoiceId),
     [invoices, selectedInvoiceId],
   );
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return items;
+
+    return items.filter((payment) => {
+      const invoiceRef =
+        typeof payment.invoice_id === "string" ? undefined : payment.invoice_id;
+      const customerRef =
+        typeof invoiceRef?.customer_id === "string"
+          ? undefined
+          : invoiceRef?.customer_id;
+      const name = customerRef?.name?.toLowerCase() || "";
+      const shop = customerRef?.shop_name?.toLowerCase() || "";
+      const location = customerRef?.address?.toLowerCase() || "";
+      return name.includes(q) || shop.includes(q) || location.includes(q);
+    });
+  }, [items, searchQuery]);
 
   const resetForm = () => {
     setSelectedInvoiceId("");
@@ -224,6 +243,17 @@ export function PaymentsScreen({
         </View>
       </View>
 
+      <View style={styles.formSection}>
+        <Text style={styles.formLabel}>Search Customer</Text>
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={styles.formInput}
+          placeholder="Search by name, shop or location"
+          placeholderTextColor="#9aa3b2"
+        />
+      </View>
+
       {isFormOpen ? (
         <Card>
           <View style={styles.formRow}>
@@ -331,15 +361,15 @@ export function PaymentsScreen({
           </View>
         ) : null}
 
-        {!isLoading && !error && items.length === 0 ? (
+        {!isLoading && !error && filteredItems.length === 0 ? (
           <View style={styles.listItem}>
-            <Text style={styles.itemSub}>No payments found.</Text>
+            <Text style={styles.itemSub}>No matching payments found.</Text>
           </View>
         ) : null}
 
         {!isLoading &&
           !error &&
-          items.map((payment, idx) => {
+          filteredItems.map((payment, idx) => {
             const invoiceRef =
               typeof payment.invoice_id === "string"
                 ? undefined
@@ -354,7 +384,7 @@ export function PaymentsScreen({
                 key={payment._id}
                 style={[
                   styles.listItem,
-                  idx === items.length - 1 && styles.noBorder,
+                  idx === filteredItems.length - 1 && styles.noBorder,
                 ]}
                 onPress={() => onOpenPayment(payment)}
               >

@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { listInvoicesApi } from "../api/invoices";
+import {
+  listInvoicePaymentsApi,
+  listInvoicesApi,
+  type InvoicePayment,
+} from "../api/invoices";
 import { useAuth } from "../auth/AuthContext";
 import { AppHeader } from "../components/AppHeader";
 import { BoxIcon, Card, Loader } from "../components/common";
@@ -23,6 +27,9 @@ export function LedgerDetailScreen({
   const { token } = useAuth();
 
   const [items, setItems] = useState<Invoice[]>([]);
+  const [invoicePaymentsMap, setInvoicePaymentsMap] = useState<
+    Record<string, InvoicePayment[]>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +45,24 @@ export function LedgerDetailScreen({
           page: 1,
           limit: 200,
         });
+
+        const paymentResults = await Promise.all(
+          response.items.map(async (inv) => {
+            const paymentsResponse = await listInvoicePaymentsApi(
+              token,
+              inv._id,
+            );
+            return [inv._id, paymentsResponse.payments] as const;
+          }),
+        );
+
+        const nextMap: Record<string, InvoicePayment[]> = {};
+        for (const [invoiceId, payments] of paymentResults) {
+          nextMap[invoiceId] = payments;
+        }
+
         setItems(response.items);
+        setInvoicePaymentsMap(nextMap);
       } catch {
         setError("Unable to load ledger details");
         showToast("Unable to load ledger details.", "error");
@@ -65,34 +89,48 @@ export function LedgerDetailScreen({
   }, [items]);
 
   const ledgerRows = useMemo(() => {
-    return items.flatMap((inv) => {
-      const invoiceItems = (
-        inv as Invoice & {
-          items?: Array<{
-            product_name_snapshot?: string;
-            quantity?: number;
-            unit_price_snapshot?: number;
-            line_total?: number;
-          }>;
-        }
-      ).items;
+    const rows: Array<{
+      id: string;
+      invoiceNo: string;
+      paymentDate: string;
+      credit: number;
+      balance: number;
+    }> = [];
 
-      if (!invoiceItems?.length) return [];
-
-      return invoiceItems.map((item) => {
-        const qty = Math.max(item.quantity ?? 0, 0);
-        const unitPrice = Math.max(item.unit_price_snapshot ?? 0, 0);
-        const computedTotal = qty * unitPrice;
-
-        return {
-          productName: item.product_name_snapshot || "-",
-          quantity: qty,
-          unitPrice,
-          totalPrice: computedTotal || Math.max(item.line_total ?? 0, 0),
-        };
+    for (const inv of items) {
+      const payments = [...(invoicePaymentsMap[inv._id] || [])].sort((a, b) => {
+        const dateDiff =
+          new Date(a.payment_date).getTime() -
+          new Date(b.payment_date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return a._id.localeCompare(b._id);
       });
+
+      let runningBalance = Math.max(inv.total_amount || 0, 0);
+
+      for (const payment of payments) {
+        const credit = Math.max(payment.amount || 0, 0);
+        runningBalance = Math.max(runningBalance - credit, 0);
+
+        rows.push({
+          id: payment._id,
+          invoiceNo: inv.invoice_no,
+          paymentDate: payment.payment_date,
+          credit,
+          balance: runningBalance,
+        });
+      }
+    }
+
+    rows.sort((a, b) => {
+      const dateDiff =
+        new Date(a.paymentDate).getTime() - new Date(b.paymentDate).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return a.id.localeCompare(b.id);
     });
-  }, [items]);
+
+    return rows;
+  }, [items, invoicePaymentsMap]);
 
   return (
     <>
@@ -148,7 +186,9 @@ export function LedgerDetailScreen({
 
         {!isLoading && !error && ledgerRows.length === 0 ? (
           <View style={styles.listItem}>
-            <Text style={styles.itemSub}>No product entries found.</Text>
+            <Text style={styles.itemSub}>
+              No payments found for this customer.
+            </Text>
           </View>
         ) : null}
 
@@ -161,24 +201,26 @@ export function LedgerDetailScreen({
                   { flex: 0.4, fontWeight: "700" },
                   styles.tableColDivider,
                 ]}
-              ></Text>
-              <Text
-                style={[
-                  styles.itemSub,
-                  { flex: 1.5, fontWeight: "700" },
-                  styles.tableColDivider,
-                ]}
               >
-                Product
+                S.No
               </Text>
               <Text
                 style={[
                   styles.itemSub,
-                  { flex: 0.6, textAlign: "center", fontWeight: "700" },
+                  { flex: 1.1, fontWeight: "700" },
                   styles.tableColDivider,
                 ]}
               >
-                Qty
+                Invoice
+              </Text>
+              <Text
+                style={[
+                  styles.itemSub,
+                  { flex: 1.1, fontWeight: "700" },
+                  styles.tableColDivider,
+                ]}
+              >
+                Date
               </Text>
               <Text
                 style={[
@@ -187,20 +229,20 @@ export function LedgerDetailScreen({
                   styles.tableColDivider,
                 ]}
               >
-                Price
+                Credit
               </Text>
               <Text
                 style={[
                   styles.itemSub,
-                  { flex: 1, textAlign: "right", fontWeight: "700" },
+                  { flex: 0.9, textAlign: "right", fontWeight: "700" },
                 ]}
               >
-                Total
+                Balance
               </Text>
             </View>
 
             {ledgerRows.map((row, idx) => (
-              <View key={`${row.productName}-${idx}`} style={styles.listItem}>
+              <View key={row.id} style={styles.listItem}>
                 <Text
                   style={[
                     styles.itemTitle,
@@ -213,33 +255,39 @@ export function LedgerDetailScreen({
                 <Text
                   style={[
                     styles.itemTitle,
-                    { flex: 1.5 },
+                    { flex: 1.1 },
                     styles.tableColDivider,
                   ]}
                   numberOfLines={1}
                 >
-                  {row.productName}
+                  {row.invoiceNo}
                 </Text>
                 <Text
                   style={[
                     styles.itemSub,
-                    { flex: 0.6, textAlign: "center" },
+                    { flex: 1.1 },
                     styles.tableColDivider,
                   ]}
+                  numberOfLines={1}
                 >
-                  {row.quantity}
+                  {new Date(row.paymentDate).toLocaleDateString()}
                 </Text>
                 <Text
                   style={[
-                    styles.amount,
+                    styles.amountSuccess,
                     { flex: 0.9, textAlign: "right" },
                     styles.tableColDivider,
                   ]}
                 >
-                  {row.unitPrice.toLocaleString()}
+                  {row.credit.toLocaleString()}
                 </Text>
-                <Text style={[styles.amount, { flex: 1, textAlign: "right" }]}>
-                  {row.totalPrice.toLocaleString()}
+                <Text
+                  style={[
+                    styles.amountDanger,
+                    { flex: 0.9, textAlign: "right" },
+                  ]}
+                >
+                  {row.balance.toLocaleString()}
                 </Text>
               </View>
             ))}
