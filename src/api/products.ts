@@ -4,7 +4,6 @@ import type { Product } from "../types/entities";
 
 type ListProductsOptions = {
   q?: string;
-  category?: string;
   page?: number;
   limit?: number;
   isActive?: boolean;
@@ -12,7 +11,7 @@ type ListProductsOptions = {
 
 export type ProductPayload = {
   name: string;
-  category: string;
+  model: string;
   price: number;
   is_active?: boolean;
 };
@@ -23,13 +22,10 @@ export function listProductsApi(
 ) {
   const params = new URLSearchParams();
   params.set("page", String(options.page ?? 1));
-  params.set("limit", String(options.limit ?? 20));
+  params.set("limit", String(options.limit ?? 100));
 
   if (options.q?.trim()) {
     params.set("q", options.q.trim());
-  }
-  if (options.category?.trim()) {
-    params.set("category", options.category.trim());
   }
   if (typeof options.isActive === "boolean") {
     params.set("isActive", String(options.isActive));
@@ -44,8 +40,8 @@ export function listProductsApi(
   );
 }
 
-export function getProductCategoriesApi(token: string) {
-  return apiRequest<{ categories: string[] }>("/products/categories", {
+export function getProductModelsApi(token: string) {
+  return apiRequest<{ models: string[] }>("/products/models", {
     method: "GET",
     token,
   });

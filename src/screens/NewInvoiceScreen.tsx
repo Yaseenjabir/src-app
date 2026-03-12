@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { createCustomerApi, listCustomersApi } from "../api/customers";
-import { addInvoicePaymentApi, createInvoiceApi } from "../api/invoices";
+import { createInvoiceApi } from "../api/invoices";
 import { listProductsApi } from "../api/products";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError } from "../api/http";
@@ -11,7 +11,7 @@ import { AppHeader } from "../components/AppHeader";
 import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 import type { Customer, Product } from "../types/entities";
-import { formatMoney } from "../utils/format";
+import { formatMoney, formatModel } from "../utils/format";
 
 type LineItem = {
   productId: string;
@@ -38,14 +38,12 @@ export function NewInvoiceScreen({
   const [isCustomerLoading, setIsCustomerLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [productQuery, setProductQuery] = useState("");
-  const [productSuggestions, setProductSuggestions] = useState<Product[]>([]);
-  const [showProductSuggestions, setShowProductSuggestions] = useState(false);
+  const [itemNameSuggestions, setItemNameSuggestions] = useState<string[]>([]);
+  const [showItemSuggestions, setShowItemSuggestions] = useState(false);
+  const [selectedItemName, setSelectedItemName] = useState("");
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
-  const [status, setStatus] = useState<"unpaid" | "partial" | "completed">(
-    "unpaid",
-  );
-  const [amountReceived, setAmountReceived] = useState("");
   const [notes, setNotes] = useState("");
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [draftProductId, setDraftProductId] = useState("");
@@ -54,12 +52,6 @@ export function NewInvoiceScreen({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (status !== "partial") {
-      setAmountReceived("");
-    }
-  }, [status]);
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -106,20 +98,16 @@ export function NewInvoiceScreen({
   }, [customerQuery, token, isCustomerInputActive]);
 
   useEffect(() => {
-    if (!showProductSuggestions) {
-      setProductSuggestions([]);
+    if (!showItemSuggestions) {
+      setItemNameSuggestions([]);
       return;
     }
 
     const query = productQuery.trim().toLowerCase();
-    const filtered = products.filter((product) => {
-      const byName = product.name.toLowerCase().includes(query);
-      const bySku = product.sku.toLowerCase().includes(query);
-      return byName || bySku;
-    });
-
-    setProductSuggestions(filtered.slice(0, 20));
-  }, [products, productQuery, showProductSuggestions]);
+    const uniqueNames = [...new Set(products.map((p) => p.name))];
+    const filtered = uniqueNames.filter((n) => n.toLowerCase().includes(query));
+    setItemNameSuggestions(filtered.slice(0, 20));
+  }, [products, productQuery, showItemSuggestions]);
 
   const itemRows = useMemo(() => {
     return lineItems.map((row) => {
@@ -139,6 +127,11 @@ export function NewInvoiceScreen({
   const draftProduct = useMemo(
     () => products.find((p) => p._id === draftProductId),
     [products, draftProductId],
+  );
+
+  const modelsForSelectedItem = useMemo(
+    () => products.filter((p) => p.name === selectedItemName),
+    [products, selectedItemName],
   );
 
   const draftQty = Math.max(parseInt(draftQuantity || "0", 10) || 0, 0);
@@ -168,7 +161,9 @@ export function NewInvoiceScreen({
     setDraftProductId("");
     setProductQuery("");
     setDraftQuantity("1");
-    setShowProductSuggestions(false);
+    setSelectedItemName("");
+    setShowItemSuggestions(false);
+    setShowModelPicker(false);
     setScreenError(null);
   };
 
@@ -207,27 +202,6 @@ export function NewInvoiceScreen({
       return;
     }
 
-    const parsedAmount = Math.max(parseInt(amountReceived || "0", 10) || 0, 0);
-
-    let paymentAmount = 0;
-    if (status === "partial") {
-      if (parsedAmount <= 0) {
-        setScreenError(
-          "For Partial status, amount received must be greater than 0.",
-        );
-        return;
-      }
-      if (parsedAmount >= grandTotal) {
-        setScreenError(
-          "For Partial status, amount received must be less than grand total.",
-        );
-        return;
-      }
-      paymentAmount = parsedAmount;
-    } else if (status === "completed") {
-      paymentAmount = grandTotal;
-    }
-
     setIsSubmitting(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -254,7 +228,7 @@ export function NewInvoiceScreen({
         setIsCustomerInputActive(false);
       }
 
-      const createdInvoice = await createInvoiceApi(token, {
+      await createInvoiceApi(token, {
         customerId: customerIdToUse,
         invoiceDate: today,
         notes: notes.trim() || undefined,
@@ -265,15 +239,6 @@ export function NewInvoiceScreen({
           unitPriceSnapshot: row.unitPrice,
         })),
       });
-
-      if (paymentAmount > 0) {
-        await addInvoicePaymentApi(token, createdInvoice._id, {
-          paymentDate: today,
-          amount: paymentAmount,
-          method: "OTHER",
-          notes: "Auto payment from invoice form",
-        });
-      }
 
       setSuccessMessage("Invoice created successfully.");
       showToast("Invoice created successfully.", "success");
@@ -359,45 +324,81 @@ export function NewInvoiceScreen({
         <View style={styles.formRow}>
           <TextInput
             value={productQuery}
-            onFocus={() => setShowProductSuggestions(true)}
+            onFocus={() => setShowItemSuggestions(true)}
             onChangeText={(value) => {
               setProductQuery(value);
               setDraftProductId("");
-              setShowProductSuggestions(true);
+              setSelectedItemName("");
+              setShowModelPicker(false);
+              setShowItemSuggestions(true);
             }}
             style={styles.formInput}
-            placeholder="Search product"
+            placeholder="Search item"
             placeholderTextColor="#9aa3b2"
           />
 
-          {showProductSuggestions ? (
+          {showItemSuggestions ? (
             <View style={styles.inlineSuggestionsCard}>
-              {productSuggestions.length === 0 ? (
+              {itemNameSuggestions.length === 0 ? (
                 <View style={[styles.suggestionItem, styles.noBorder]}>
-                  <Text style={styles.itemSub}>No products found.</Text>
+                  <Text style={styles.itemSub}>No items found.</Text>
                 </View>
               ) : null}
 
-              {productSuggestions.map((product, pIndex) => (
+              {itemNameSuggestions.map((itemName, idx) => (
                 <TouchableOpacity
-                  key={product._id}
+                  key={itemName}
                   style={[
                     styles.suggestionItem,
-                    pIndex === productSuggestions.length - 1 && styles.noBorder,
+                    idx === itemNameSuggestions.length - 1 && styles.noBorder,
                   ]}
                   onPress={() => {
-                    setDraftProductId(product._id);
-                    setProductQuery(`${product.name} (${product.sku})`);
-                    setShowProductSuggestions(false);
+                    setSelectedItemName(itemName);
+                    setProductQuery(itemName);
+                    setShowItemSuggestions(false);
+                    setShowModelPicker(true);
+                    setDraftProductId("");
                   }}
                 >
-                  <Text style={styles.suggestionText}>{product.name}</Text>
-                  <Text style={styles.amount}>
-                    {formatMoney(product.price)}
-                  </Text>
+                  <Text style={styles.suggestionText}>{itemName}</Text>
                 </TouchableOpacity>
               ))}
             </View>
+          ) : null}
+
+          {showModelPicker ? (
+            <>
+              <Text style={styles.formLabel}>Select Model</Text>
+              <View style={styles.inlineSuggestionsCard}>
+                {modelsForSelectedItem.length === 0 ? (
+                  <View style={[styles.suggestionItem, styles.noBorder]}>
+                    <Text style={styles.itemSub}>No models available.</Text>
+                  </View>
+                ) : null}
+
+                {modelsForSelectedItem.map((product, idx) => (
+                  <TouchableOpacity
+                    key={product._id}
+                    style={[
+                      styles.suggestionItem,
+                      idx === modelsForSelectedItem.length - 1 &&
+                        styles.noBorder,
+                    ]}
+                    onPress={() => {
+                      setDraftProductId(product._id);
+                      setShowModelPicker(false);
+                    }}
+                  >
+                    <Text style={styles.suggestionText}>
+                      {formatModel(product.model)}
+                    </Text>
+                    <Text style={styles.amount}>
+                      {formatMoney(product.price)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
           ) : null}
 
           <View style={styles.formRow3}>
@@ -476,7 +477,9 @@ export function NewInvoiceScreen({
             >
               <View style={styles.itemMain}>
                 <Text style={styles.itemTitle}>
-                  {row.product?.name || "Unknown Product"}
+                  {row.product
+                    ? `${row.product.name} — ${formatModel(row.product.model)}`
+                    : "Unknown Product"}
                 </Text>
                 <Text style={styles.itemSub}>
                   {row.qty} × {formatMoney(row.unitPrice)}
@@ -497,68 +500,6 @@ export function NewInvoiceScreen({
           ))
         )}
       </Card>
-
-      <Text style={styles.sec}>PAYMENT</Text>
-      <View style={styles.formSection}>
-        <Text style={styles.formLabel}>Status</Text>
-        <View style={styles.statusRow}>
-          <TouchableOpacity
-            style={[styles.chip, status === "unpaid" && styles.chipActive]}
-            onPress={() => setStatus("unpaid")}
-          >
-            <Text
-              style={[
-                styles.chipText,
-                status === "unpaid" && styles.chipTextActive,
-              ]}
-            >
-              Unpaid
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.chip, status === "partial" && styles.chipActive]}
-            onPress={() => setStatus("partial")}
-          >
-            <Text
-              style={[
-                styles.chipText,
-                status === "partial" && styles.chipTextActive,
-              ]}
-            >
-              Partial
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.chip, status === "completed" && styles.chipActive]}
-            onPress={() => setStatus("completed")}
-          >
-            <Text
-              style={[
-                styles.chipText,
-                status === "completed" && styles.chipTextActive,
-              ]}
-            >
-              Paid
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {status === "partial" ? (
-        <View style={styles.formSection}>
-          <Text style={styles.formLabel}>Amount Received (PKR)</Text>
-          <TextInput
-            keyboardType="number-pad"
-            value={amountReceived}
-            onChangeText={(value) =>
-              setAmountReceived(value.replace(/[^0-9]/g, ""))
-            }
-            style={styles.formInput}
-            placeholder="0"
-            placeholderTextColor="#9aa3b2"
-          />
-        </View>
-      ) : null}
 
       <View style={styles.formSection}>
         <Text style={styles.formLabel}>Notes (Optional)</Text>

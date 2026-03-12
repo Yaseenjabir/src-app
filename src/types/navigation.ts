@@ -9,5 +9,4 @@ export type Page =
   | MainTab
   | "invDetail"
   | "newInvoice"
-  | "payDetail"
   | "ledgerDetail";

@@ -1,20 +1,51 @@
-import { useEffect, useMemo, useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  listInvoicePaymentsApi,
-  listInvoicesApi,
-  type InvoicePayment,
-} from "../api/invoices";
+  ActivityIndicator,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { getCustomerApi } from "../api/customers";
+import { listInvoicesApi } from "../api/invoices";
+import {
+  createLedgerPaymentApi,
+  listCustomerLedgerPaymentsApi,
+  setOpeningBalanceApi,
+} from "../api/ledgerPayments";
 import { useAuth } from "../auth/AuthContext";
 import { AppHeader } from "../components/AppHeader";
 import { BoxIcon, Card, Loader } from "../components/common";
 import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
-import type { Customer, Invoice } from "../types/entities";
+import type { Customer, Invoice, LedgerPayment } from "../types/entities";
 import { formatMoney } from "../utils/format";
 
+type LedgerRow =
+  | { kind: "opening"; debit: number; _key: string }
+  | {
+      kind: "invoice";
+      date: string;
+      invoiceNo: string;
+      debit: number;
+      _key: string;
+    }
+  | {
+      kind: "payment";
+      date: string;
+      amount: number;
+      method: string;
+      _key: string;
+    };
+
+const PAYMENT_METHODS: Array<"CASH" | "BANK" | "OTHER"> = [
+  "CASH",
+  "BANK",
+  "OTHER",
+];
+
 export function LedgerDetailScreen({
-  customer,
+  customer: customerProp,
   onBack,
   refreshTick = 0,
 }: {
@@ -26,142 +57,177 @@ export function LedgerDetailScreen({
   const { showToast } = useToast();
   const { token } = useAuth();
 
-  const [items, setItems] = useState<Invoice[]>([]);
-  const [invoicePaymentsMap, setInvoicePaymentsMap] = useState<
-    Record<string, InvoicePayment[]>
-  >({});
+  const [localCustomer, setLocalCustomer] = useState<Customer | null>(
+    customerProp,
+  );
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [payments, setPayments] = useState<LedgerPayment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Opening balance form
+  const [isObFormOpen, setIsObFormOpen] = useState(false);
+  const [obInput, setObInput] = useState("");
+  const [isSavingOb, setIsSavingOb] = useState(false);
+
+  // Payment form
+  const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] =
+    useState<"CASH" | "BANK" | "OTHER">("CASH");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+
+  const customerId = customerProp?._id;
+
+  const load = useCallback(async () => {
+    if (!token || !customerId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [freshCustomer, invoiceRes, ledgerPayments] = await Promise.all([
+        getCustomerApi(token, customerId),
+        listInvoicesApi(token, { customerId, page: 1, limit: 200 }),
+        listCustomerLedgerPaymentsApi(token, customerId),
+      ]);
+      setLocalCustomer(freshCustomer);
+      setInvoices(invoiceRes.items);
+      setPayments(ledgerPayments);
+    } catch {
+      setError("Unable to load ledger details");
+      showToast("Unable to load ledger details.", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token, customerId, showToast]);
+
   useEffect(() => {
-    const load = async () => {
-      if (!token || !customer?._id) return;
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await listInvoicesApi(token, {
-          customerId: customer._id,
-          page: 1,
-          limit: 200,
-        });
-
-        const paymentResults = await Promise.all(
-          response.items.map(async (inv) => {
-            const paymentsResponse = await listInvoicePaymentsApi(
-              token,
-              inv._id,
-            );
-            return [inv._id, paymentsResponse.payments] as const;
-          }),
-        );
-
-        const nextMap: Record<string, InvoicePayment[]> = {};
-        for (const [invoiceId, payments] of paymentResults) {
-          nextMap[invoiceId] = payments;
-        }
-
-        setItems(response.items);
-        setInvoicePaymentsMap(nextMap);
-      } catch {
-        setError("Unable to load ledger details");
-        showToast("Unable to load ledger details.", "error");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     void load();
-  }, [token, customer?._id, refreshTick, showToast]);
+  }, [load, refreshTick]);
 
   const totals = useMemo(() => {
-    const totalAmount = items.reduce(
+    const openingBalance = localCustomer?.opening_balance ?? 0;
+    const totalInvoiced = invoices.reduce(
       (sum, inv) => sum + (inv.total_amount || 0),
       0,
     );
-    const remaining = items.reduce(
-      (sum, inv) => sum + (inv.remaining_amount || 0),
-      0,
-    );
-    const receivable = Math.max(totalAmount - remaining, 0);
+    const totalOutstanding = openingBalance + totalInvoiced;
+    const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+    const remaining = Math.max(totalOutstanding - totalPaid, 0);
+    return {
+      openingBalance,
+      totalInvoiced,
+      totalOutstanding,
+      totalPaid,
+      remaining,
+    };
+  }, [localCustomer, invoices, payments]);
 
-    return { totalAmount, receivable, remaining };
-  }, [items]);
+  const ledgerRows = useMemo((): LedgerRow[] => {
+    const rows: LedgerRow[] = [];
 
-  const ledgerGroups = useMemo(() => {
-    const groups: Array<{
-      invoiceId: string;
-      invoiceNo: string;
-      rows: Array<{
-        id: string;
-        paymentDate: string;
-        credit: number;
-        balance: number;
-        isSnapshot?: boolean;
-      }>;
-    }> = [];
-
-    const sortedInvoices = [...items].sort((a, b) => {
-      const dateDiff =
-        new Date(a.invoice_date).getTime() - new Date(b.invoice_date).getTime();
-      if (dateDiff !== 0) return dateDiff;
-      return a.invoice_no.localeCompare(b.invoice_no);
-    });
-
-    for (const inv of sortedInvoices) {
-      const payments = [...(invoicePaymentsMap[inv._id] || [])].sort((a, b) => {
-        const dateDiff =
-          new Date(a.payment_date).getTime() -
-          new Date(b.payment_date).getTime();
-        if (dateDiff !== 0) return dateDiff;
-        return a._id.localeCompare(b._id);
-      });
-
-      let runningBalance = Math.max(inv.total_amount || 0, 0);
-      const rows: Array<{
-        id: string;
-        paymentDate: string;
-        credit: number;
-        balance: number;
-        isSnapshot?: boolean;
-      }> = [
-        {
-          id: `snapshot-${inv._id}`,
-          paymentDate: inv.invoice_date,
-          credit: 0,
-          balance: runningBalance,
-          isSnapshot: true,
-        },
-      ];
-
-      rows.push(
-        ...payments.map((payment) => {
-          const credit = Math.max(payment.amount || 0, 0);
-          runningBalance = Math.max(runningBalance - credit, 0);
-
-          return {
-            id: payment._id,
-            paymentDate: payment.payment_date,
-            credit,
-            balance: runningBalance,
-          };
-        }),
-      );
-
-      groups.push({
-        invoiceId: inv._id,
-        invoiceNo: inv.invoice_no,
-        rows,
+    if (
+      localCustomer?.opening_balance_set &&
+      (localCustomer.opening_balance ?? 0) > 0
+    ) {
+      rows.push({
+        _key: "opening",
+        kind: "opening",
+        debit: localCustomer.opening_balance,
       });
     }
 
-    return groups;
-  }, [items, invoicePaymentsMap]);
+    const sortedInvoices = [...invoices].sort(
+      (a, b) =>
+        new Date(a.invoice_date).getTime() - new Date(b.invoice_date).getTime(),
+    );
+    for (const inv of sortedInvoices) {
+      rows.push({
+        _key: `inv-${inv._id}`,
+        kind: "invoice",
+        date: inv.invoice_date,
+        invoiceNo: inv.invoice_no,
+        debit: inv.total_amount || 0,
+      });
+    }
 
-  const totalLedgerRows = useMemo(
-    () => ledgerGroups.reduce((sum, group) => sum + group.rows.length, 0),
-    [ledgerGroups],
-  );
+    const sortedPayments = [...payments].sort(
+      (a, b) =>
+        new Date(a.payment_date).getTime() -
+        new Date(b.payment_date).getTime(),
+    );
+    for (const p of sortedPayments) {
+      rows.push({
+        _key: `pay-${p._id}`,
+        kind: "payment",
+        date: p.payment_date,
+        amount: p.amount,
+        method: p.method,
+      });
+    }
+
+    // Keep opening always first; sort everything else by date
+    rows.sort((a, b) => {
+      if (a.kind === "opening") return -1;
+      if (b.kind === "opening") return 1;
+      const dateA = a.kind === "invoice" ? a.date : a.date;
+      const dateB = b.kind === "invoice" ? b.date : b.date;
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    });
+
+    return rows;
+  }, [localCustomer, invoices, payments]);
+
+  async function handleSetOpeningBalance() {
+    if (!token || !customerId) return;
+    const amount = parseInt(obInput.trim(), 10);
+    if (isNaN(amount) || amount < 0) {
+      showToast("Enter a valid amount (0 or more).", "error");
+      return;
+    }
+    setIsSavingOb(true);
+    try {
+      await setOpeningBalanceApi(token, customerId, amount);
+      setIsObFormOpen(false);
+      setObInput("");
+      await load();
+      showToast("Opening balance set.", "success");
+    } catch {
+      showToast("Failed to set opening balance.", "error");
+    } finally {
+      setIsSavingOb(false);
+    }
+  }
+
+  async function handleRecordPayment() {
+    if (!token || !customerId) return;
+    const amount = parseInt(paymentAmount.trim(), 10);
+    if (isNaN(amount) || amount <= 0) {
+      showToast("Enter a valid payment amount.", "error");
+      return;
+    }
+    setIsSavingPayment(true);
+    try {
+      await createLedgerPaymentApi(token, customerId, {
+        amount,
+        method: paymentMethod,
+        notes: paymentNotes.trim() || undefined,
+      });
+      setIsPaymentFormOpen(false);
+      setPaymentAmount("");
+      setPaymentMethod("CASH");
+      setPaymentNotes("");
+      await load();
+      showToast("Payment recorded.", "success");
+    } catch {
+      showToast("Failed to record payment.", "error");
+    } finally {
+      setIsSavingPayment(false);
+    }
+  }
+
+  const customer = localCustomer ?? customerProp;
+  let runningBalance = 0;
 
   return (
     <>
@@ -171,9 +237,9 @@ export function LedgerDetailScreen({
         </TouchableOpacity>
       </AppHeader>
 
-      <Text style={styles.sec}>LEDGER ITEMS</Text>
+      <Text style={styles.sec}>CUSTOMER</Text>
       <View style={[styles.heroCard, { marginBottom: 12 }]}>
-        <Text style={styles.itemTitle}>{customer?.name || "Customer"}</Text>
+        <Text style={styles.itemTitle}>{customer?.name ?? "Customer"}</Text>
         {customer?.shop_name ? (
           <Text style={styles.itemSub}>
             <Text style={{ fontWeight: "700" }}>Shop: </Text>
@@ -192,20 +258,65 @@ export function LedgerDetailScreen({
             {customer.address}
           </Text>
         ) : null}
-        {customer?.notes ? (
-          <Text style={styles.itemSub}>
-            <Text style={{ fontWeight: "700" }}>Notes: </Text>
-            {customer.notes}
-          </Text>
-        ) : null}
-        {!customer?.shop_name &&
-        !customer?.phone &&
-        !customer?.address &&
-        !customer?.notes ? (
-          <Text style={styles.itemSub}>-</Text>
-        ) : null}
       </View>
 
+      {/* Opening balance section */}
+      {!isLoading && customer && !customer.opening_balance_set ? (
+        <View style={{ marginHorizontal: 20, marginBottom: 12 }}>
+          {!isObFormOpen ? (
+            <TouchableOpacity
+              style={[styles.customerSecondaryBtn, { alignSelf: "flex-start" }]}
+              onPress={() => setIsObFormOpen(true)}
+            >
+              <Text style={[styles.itemTitle, { fontSize: 12 }]}>
+                + Set Opening Balance
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View
+              style={[
+                styles.heroCard,
+                { marginHorizontal: 0, marginTop: 0, marginBottom: 0 },
+              ]}
+            >
+              <Text style={styles.formLabel}>OPENING BALANCE (PKR)</Text>
+              <TextInput
+                style={styles.formInput}
+                value={obInput}
+                onChangeText={setObInput}
+                keyboardType="numeric"
+                placeholder="e.g. 50000"
+                placeholderTextColor="#666"
+              />
+              <View style={[styles.customerFormActions, { marginTop: 12 }]}>
+                <TouchableOpacity
+                  style={styles.customerSecondaryBtn}
+                  onPress={() => {
+                    setIsObFormOpen(false);
+                    setObInput("");
+                  }}
+                  disabled={isSavingOb}
+                >
+                  <Text style={styles.itemSub}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.customerPrimaryBtn}
+                  onPress={handleSetOpeningBalance}
+                  disabled={isSavingOb}
+                >
+                  {isSavingOb ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.customerPrimaryBtnText}>Submit</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      ) : null}
+
+      <Text style={styles.sec}>LEDGER</Text>
       <Card>
         {isLoading ? <Loader /> : null}
 
@@ -215,32 +326,18 @@ export function LedgerDetailScreen({
           </View>
         ) : null}
 
-        {!isLoading && !error && totalLedgerRows === 0 ? (
-          <View style={styles.listItem}>
-            <Text style={styles.itemSub}>
-              No invoices found for this customer.
-            </Text>
-          </View>
-        ) : null}
-
-        {!isLoading && !error && totalLedgerRows > 0 ? (
+        {!isLoading && !error ? (
           <>
-            <View style={styles.listItem}>
+            {/* Table header */}
+            <View style={[styles.listItem, { paddingVertical: 9 }]}>
               <Text
                 style={[
                   styles.itemSub,
-                  { flex: 0.4, fontWeight: "700" },
-                  styles.tableColDivider,
-                ]}
-              ></Text>
-              <Text
-                style={[
-                  styles.itemSub,
-                  { flex: 1.1, fontWeight: "700" },
+                  { width: 26, fontWeight: "700" },
                   styles.tableColDivider,
                 ]}
               >
-                Invoice
+                #
               </Text>
               <Text
                 style={[
@@ -254,7 +351,25 @@ export function LedgerDetailScreen({
               <Text
                 style={[
                   styles.itemSub,
-                  { flex: 0.9, textAlign: "right", fontWeight: "700" },
+                  { flex: 1.6, fontWeight: "700" },
+                  styles.tableColDivider,
+                ]}
+              >
+                Description
+              </Text>
+              <Text
+                style={[
+                  styles.itemSub,
+                  { flex: 1, textAlign: "right", fontWeight: "700" },
+                  styles.tableColDivider,
+                ]}
+              >
+                Debit
+              </Text>
+              <Text
+                style={[
+                  styles.itemSub,
+                  { flex: 1, textAlign: "right", fontWeight: "700" },
                   styles.tableColDivider,
                 ]}
               >
@@ -263,117 +378,263 @@ export function LedgerDetailScreen({
               <Text
                 style={[
                   styles.itemSub,
-                  { flex: 0.9, textAlign: "right", fontWeight: "700" },
+                  { flex: 1, textAlign: "right", fontWeight: "700" },
                 ]}
               >
                 Balance
               </Text>
             </View>
 
-            {(() => {
-              let serial = 0;
+            {ledgerRows.length === 0 ? (
+              <View style={[styles.listItem, styles.noBorder]}>
+                <Text style={styles.itemSub}>
+                  No ledger entries for this customer.
+                </Text>
+              </View>
+            ) : null}
 
-              return ledgerGroups.map((group) => (
-                <View key={group.invoiceId} style={styles.ledgerGroupCard}>
-                  {group.rows.map((row, idx) => {
-                    serial += 1;
+            {ledgerRows.map((row, idx) => {
+              let debit = 0;
+              let credit = 0;
+              let description = "";
+              let dateLabel = "—";
 
-                    return (
-                      <View
-                        key={row.id}
-                        style={[
-                          styles.listItem,
-                          idx === group.rows.length - 1 && styles.noBorder,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.itemTitle,
-                            { flex: 0.4 },
-                            styles.tableColDivider,
-                          ]}
-                        >
-                          {serial}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.itemTitle,
-                            { flex: 1.1 },
-                            styles.tableColDivider,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {group.invoiceNo}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.itemSub,
-                            { flex: 1.1 },
-                            styles.tableColDivider,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {new Date(row.paymentDate).toLocaleDateString()}
-                        </Text>
-                        <Text
-                          style={[
-                            row.isSnapshot
-                              ? styles.amount
-                              : styles.amountSuccess,
-                            { flex: 0.9, textAlign: "right" },
-                            styles.tableColDivider,
-                          ]}
-                        >
-                          {row.credit.toLocaleString()}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.amountDanger,
-                            { flex: 0.9, textAlign: "right" },
-                          ]}
-                        >
-                          {row.balance.toLocaleString()}
-                        </Text>
-                      </View>
-                    );
-                  })}
+              if (row.kind === "opening") {
+                debit = row.debit;
+                description = "Opening Bal.";
+              } else if (row.kind === "invoice") {
+                debit = row.debit;
+                description = `Inv #${row.invoiceNo}`;
+                dateLabel = new Date(row.date).toLocaleDateString();
+              } else {
+                credit = row.amount;
+                description = `Payment (${row.method})`;
+                dateLabel = new Date(row.date).toLocaleDateString();
+              }
+
+              runningBalance = runningBalance + debit - credit;
+              const isLast = idx === ledgerRows.length - 1;
+
+              return (
+                <View
+                  key={row._key}
+                  style={[
+                    styles.listItem,
+                    isLast && styles.noBorder,
+                    { paddingVertical: 10 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.itemSub,
+                      { width: 26 },
+                      styles.tableColDivider,
+                    ]}
+                  >
+                    {idx + 1}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.itemSub,
+                      { flex: 1.1 },
+                      styles.tableColDivider,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {dateLabel}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.itemSub,
+                      { flex: 1.6 },
+                      styles.tableColDivider,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {description}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.amount,
+                      {
+                        flex: 1,
+                        textAlign: "right",
+                        fontSize: 12,
+                      },
+                      styles.tableColDivider,
+                    ]}
+                  >
+                    {debit > 0 ? debit.toLocaleString() : "—"}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.amountSuccess,
+                      { flex: 1, textAlign: "right", fontSize: 12 },
+                      styles.tableColDivider,
+                    ]}
+                  >
+                    {credit > 0 ? credit.toLocaleString() : "—"}
+                  </Text>
+                  <Text
+                    style={[
+                      runningBalance > 0
+                        ? styles.amountDanger
+                        : styles.amountSuccess,
+                      { flex: 1, textAlign: "right", fontSize: 12 },
+                    ]}
+                  >
+                    {runningBalance.toLocaleString()}
+                  </Text>
                 </View>
-              ));
-            })()}
-          </>
-        ) : null}
-
-        {!isLoading && !error ? (
-          <>
-            <View style={styles.listItem}>
-              <Text style={[styles.itemSub, { fontWeight: "700" }]}>
-                SUMMARY
-              </Text>
-            </View>
-
-            <View style={styles.listItem}>
-              <Text style={[styles.itemTitle, { flex: 1 }]}>Total</Text>
-              <Text style={[styles.amount, { textAlign: "right" }]}>
-                {formatMoney(totals.totalAmount)}
-              </Text>
-            </View>
-
-            <View style={styles.listItem}>
-              <Text style={[styles.itemTitle, { flex: 1 }]}>Received</Text>
-              <Text style={[styles.amountSuccess, { textAlign: "right" }]}>
-                {formatMoney(totals.receivable)}
-              </Text>
-            </View>
-
-            <View style={[styles.listItem, styles.noBorder]}>
-              <Text style={[styles.itemTitle, { flex: 1 }]}>Remaining</Text>
-              <Text style={[styles.amountDanger, { textAlign: "right" }]}>
-                {formatMoney(totals.remaining)}
-              </Text>
-            </View>
+              );
+            })}
           </>
         ) : null}
       </Card>
+
+      {/* Summary */}
+      {!isLoading && !error ? (
+        <>
+          <Text style={styles.sec}>SUMMARY</Text>
+          <Card>
+            <View style={styles.listItem}>
+              <Text style={[styles.itemTitle, { flex: 1 }]}>
+                Opening Balance
+              </Text>
+              <Text style={styles.amount}>
+                {formatMoney(totals.openingBalance)}
+              </Text>
+            </View>
+            <View style={styles.listItem}>
+              <Text style={[styles.itemTitle, { flex: 1 }]}>
+                Total Invoiced
+              </Text>
+              <Text style={styles.amount}>
+                {formatMoney(totals.totalInvoiced)}
+              </Text>
+            </View>
+            <View style={styles.listItem}>
+              <Text style={[styles.itemTitle, { flex: 1 }]}>
+                Total Outstanding
+              </Text>
+              <Text style={styles.amount}>
+                {formatMoney(totals.totalOutstanding)}
+              </Text>
+            </View>
+            <View style={styles.listItem}>
+              <Text style={[styles.itemTitle, { flex: 1 }]}>Total Paid</Text>
+              <Text style={styles.amountSuccess}>
+                {formatMoney(totals.totalPaid)}
+              </Text>
+            </View>
+            <View style={[styles.listItem, styles.noBorder]}>
+              <Text style={[styles.itemTitle, { flex: 1 }]}>Remaining</Text>
+              <Text style={styles.amountDanger}>
+                {formatMoney(totals.remaining)}
+              </Text>
+            </View>
+          </Card>
+        </>
+      ) : null}
+
+      {/* Payment form */}
+      {!isLoading && !error && isPaymentFormOpen ? (
+        <>
+          <Text style={styles.sec}>RECORD PAYMENT</Text>
+          <Card>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>AMOUNT (PKR)</Text>
+              <TextInput
+                style={styles.formInput}
+                value={paymentAmount}
+                onChangeText={setPaymentAmount}
+                keyboardType="numeric"
+                placeholder="e.g. 10000"
+                placeholderTextColor="#666"
+              />
+            </View>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>METHOD</Text>
+              <View style={styles.statusRow}>
+                {PAYMENT_METHODS.map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[
+                      styles.chip,
+                      paymentMethod === m && styles.chipActive,
+                    ]}
+                    onPress={() => setPaymentMethod(m)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        paymentMethod === m && styles.chipTextActive,
+                      ]}
+                    >
+                      {m}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={[styles.formRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.formLabel}>NOTES (optional)</Text>
+              <TextInput
+                style={styles.formInput}
+                value={paymentNotes}
+                onChangeText={setPaymentNotes}
+                placeholder="Optional note"
+                placeholderTextColor="#666"
+              />
+            </View>
+            <View
+              style={[
+                styles.customerFormActions,
+                { paddingHorizontal: 16, paddingBottom: 14 },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.customerSecondaryBtn}
+                onPress={() => {
+                  setIsPaymentFormOpen(false);
+                  setPaymentAmount("");
+                  setPaymentMethod("CASH");
+                  setPaymentNotes("");
+                }}
+                disabled={isSavingPayment}
+              >
+                <Text style={styles.itemSub}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.customerPrimaryBtn}
+                onPress={handleRecordPayment}
+                disabled={isSavingPayment}
+              >
+                {isSavingPayment ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.customerPrimaryBtnText}>Submit</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Card>
+        </>
+      ) : null}
+
+      {/* CTA */}
+      {!isLoading && !error && !isPaymentFormOpen ? (
+        <TouchableOpacity
+          style={[
+            styles.cta,
+            { marginBottom: 24 },
+            totals.remaining <= 0 && styles.ctaDisabled,
+          ]}
+          onPress={() => setIsPaymentFormOpen(true)}
+          disabled={totals.remaining <= 0}
+        >
+          <Text style={styles.ctaText}>Record Payment</Text>
+        </TouchableOpacity>
+      ) : null}
     </>
   );
 }

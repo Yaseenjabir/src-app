@@ -63,7 +63,7 @@ export function BottomTabs({
         label="Payments"
         icon="card"
         iconOutline="card-outline"
-        active={current === "payments" || current === "payDetail"}
+        active={current === "payments"}
         onPress={() => onGo("payments")}
       />
       <Tab

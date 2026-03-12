@@ -45,6 +45,13 @@ export function listCustomersApi(
   );
 }
 
+export function getCustomerApi(token: string, customerId: string) {
+  return apiRequest<Customer>(`/customers/${customerId}`, {
+    method: "GET",
+    token,
+  });
+}
+
 export function createCustomerApi(token: string, body: CreateCustomerPayload) {
   return apiRequest<Customer>("/customers", {
     method: "POST",

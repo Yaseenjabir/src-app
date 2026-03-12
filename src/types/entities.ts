@@ -6,13 +6,27 @@ export type Customer = {
   phone?: string;
   notes?: string;
   is_active: boolean;
+  opening_balance: number;
+  opening_balance_set: boolean;
+};
+
+export type LedgerPayment = {
+  _id: string;
+  customer_id:
+    | string
+    | { _id: string; name?: string; shop_name?: string };
+  payment_date: string;
+  amount: number;
+  method: "CASH" | "BANK" | "OTHER";
+  notes?: string;
+  created_at: string;
 };
 
 export type Product = {
   _id: string;
   sku: string;
   name: string;
-  category: string;
+  model: string;
   price: number;
   is_active: boolean;
 };
