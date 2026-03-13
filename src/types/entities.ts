@@ -49,4 +49,5 @@ export type Invoice = {
   total_amount: number;
   remaining_amount: number;
   status: InvoiceStatus;
+  created_at: string;
 };

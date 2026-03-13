@@ -49,6 +49,9 @@ export function NewInvoiceScreen({
   const [draftProductId, setDraftProductId] = useState("");
   const [draftQuantity, setDraftQuantity] = useState("1");
 
+  const [discountInput, setDiscountInput] = useState("");
+  const [discountMode, setDiscountMode] = useState<"PKR" | "%">("PKR");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -139,7 +142,11 @@ export function NewInvoiceScreen({
   const draftLineTotal = draftQty * draftUnitPrice;
 
   const subtotal = itemRows.reduce((sum, row) => sum + row.lineTotal, 0);
-  const grandTotal = subtotal;
+  const discountAmount =
+    discountMode === "%"
+      ? Math.round(subtotal * (parseFloat(discountInput) || 0) / 100)
+      : parseInt(discountInput || "0", 10) || 0;
+  const grandTotal = Math.max(subtotal - discountAmount, 0);
 
   const addLineItem = () => {
     const qty = Math.max(parseInt(draftQuantity || "0", 10) || 0, 0);
@@ -232,7 +239,7 @@ export function NewInvoiceScreen({
         customerId: customerIdToUse,
         invoiceDate: today,
         notes: notes.trim() || undefined,
-        discount: 0,
+        discount: discountAmount,
         items: itemRows.map((row) => ({
           productId: row.product!._id,
           quantity: row.qty,
@@ -521,9 +528,73 @@ export function NewInvoiceScreen({
           </View>
           <Text style={styles.amount}>{formatMoney(subtotal)}</Text>
         </View>
+
+        {/* Discount row */}
+        <View style={styles.formRow}>
+          <View style={styles.itemMain}>
+            <Text style={styles.itemSub}>Discount</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity
+              style={[
+                styles.chip,
+                discountMode === "PKR" && styles.chipActive,
+              ]}
+              onPress={() => {
+                setDiscountMode("PKR");
+                setDiscountInput("");
+              }}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  discountMode === "PKR" && styles.chipTextActive,
+                ]}
+              >
+                PKR
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.chip, discountMode === "%" && styles.chipActive]}
+              onPress={() => {
+                setDiscountMode("%");
+                setDiscountInput("");
+              }}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  discountMode === "%" && styles.chipTextActive,
+                ]}
+              >
+                %
+              </Text>
+            </TouchableOpacity>
+            <TextInput
+              style={[styles.formInput, { width: 80, marginBottom: 0 }]}
+              value={discountInput}
+              onChangeText={(v) =>
+                setDiscountInput(v.replace(/[^0-9.]/g, ""))
+              }
+              keyboardType="numeric"
+              placeholder={discountMode === "%" ? "0" : "0"}
+              placeholderTextColor="#9aa3b2"
+            />
+          </View>
+        </View>
+
+        {discountAmount > 0 ? (
+          <View style={styles.formRow}>
+            <View style={styles.itemMain}>
+              <Text style={styles.itemSub}>Discount Amount</Text>
+            </View>
+            <Text style={styles.amountDanger}>− {formatMoney(discountAmount)}</Text>
+          </View>
+        ) : null}
+
         <View style={[styles.formRow, styles.noBorder]}>
           <View style={styles.itemMain}>
-            <Text style={styles.itemTitle}>Grand Total</Text>
+            <Text style={styles.itemTitle}>Total</Text>
           </View>
           <Text style={styles.amount}>{formatMoney(grandTotal)}</Text>
         </View>

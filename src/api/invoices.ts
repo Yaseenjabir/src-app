@@ -167,6 +167,18 @@ export function addInvoicePaymentApi(
   );
 }
 
+export function appendInvoiceItemsApi(
+  token: string,
+  invoiceId: string,
+  items: Array<{ productId: string; quantity: number; unitPriceSnapshot?: number }>,
+) {
+  return apiRequest<InvoiceDetail>(`/invoices/${invoiceId}/items`, {
+    method: "POST",
+    token,
+    body: { items },
+  });
+}
+
 export function deleteInvoicePaymentApi(token: string, paymentId: string) {
   return apiRequest<{ message: string }>(`/invoices/payments/${paymentId}`, {
     method: "DELETE",

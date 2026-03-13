@@ -22,12 +22,14 @@ import type { Customer, Invoice, LedgerPayment } from "../types/entities";
 import { formatMoney } from "../utils/format";
 
 type LedgerRow =
-  | { kind: "opening"; debit: number; _key: string }
+  | { kind: "opening"; credit: number; ts: 0; sortId: ""; _key: string }
   | {
       kind: "invoice";
       date: string;
       invoiceNo: string;
-      debit: number;
+      credit: number;
+      ts: number;
+      sortId: string;
       _key: string;
     }
   | {
@@ -35,6 +37,8 @@ type LedgerRow =
       date: string;
       amount: number;
       method: string;
+      ts: number;
+      sortId: string;
       _key: string;
     };
 
@@ -133,46 +137,40 @@ export function LedgerDetailScreen({
       rows.push({
         _key: "opening",
         kind: "opening",
-        debit: localCustomer.opening_balance,
+        credit: localCustomer.opening_balance,
+        ts: 0,
+        sortId: "",
       });
     }
 
-    const sortedInvoices = [...invoices].sort(
-      (a, b) =>
-        new Date(a.invoice_date).getTime() - new Date(b.invoice_date).getTime(),
-    );
-    for (const inv of sortedInvoices) {
+    for (const inv of invoices) {
       rows.push({
         _key: `inv-${inv._id}`,
         kind: "invoice",
         date: inv.invoice_date,
         invoiceNo: inv.invoice_no,
-        debit: inv.total_amount || 0,
+        credit: inv.total_amount || 0,
+        ts: new Date(inv.created_at).getTime() || 0,
+        sortId: inv._id,
       });
     }
 
-    const sortedPayments = [...payments].sort(
-      (a, b) =>
-        new Date(a.payment_date).getTime() -
-        new Date(b.payment_date).getTime(),
-    );
-    for (const p of sortedPayments) {
+    for (const p of payments) {
       rows.push({
         _key: `pay-${p._id}`,
         kind: "payment",
         date: p.payment_date,
         amount: p.amount,
         method: p.method,
+        ts: new Date(p.created_at).getTime() || 0,
+        sortId: p._id,
       });
     }
 
-    // Keep opening always first; sort everything else by date
+    // Opening balance always first (ts=0); everything else in actual creation order
     rows.sort((a, b) => {
-      if (a.kind === "opening") return -1;
-      if (b.kind === "opening") return 1;
-      const dateA = a.kind === "invoice" ? a.date : a.date;
-      const dateB = b.kind === "invoice" ? b.date : b.date;
-      return new Date(dateA).getTime() - new Date(dateB).getTime();
+      if (a.ts !== b.ts) return a.ts - b.ts;
+      return a.sortId < b.sortId ? -1 : a.sortId > b.sortId ? 1 : 0;
     });
 
     return rows;
@@ -204,6 +202,13 @@ export function LedgerDetailScreen({
     const amount = parseInt(paymentAmount.trim(), 10);
     if (isNaN(amount) || amount <= 0) {
       showToast("Enter a valid payment amount.", "error");
+      return;
+    }
+    if (amount > totals.remaining) {
+      showToast(
+        `Amount exceeds remaining balance (${totals.remaining.toLocaleString()}).`,
+        "error",
+      );
       return;
     }
     setIsSavingPayment(true);
@@ -400,19 +405,19 @@ export function LedgerDetailScreen({
               let dateLabel = "—";
 
               if (row.kind === "opening") {
-                debit = row.debit;
+                credit = row.credit;
                 description = "Opening Bal.";
               } else if (row.kind === "invoice") {
-                debit = row.debit;
+                credit = row.credit;
                 description = `Inv #${row.invoiceNo}`;
                 dateLabel = new Date(row.date).toLocaleDateString();
               } else {
-                credit = row.amount;
+                debit = row.amount;
                 description = `Payment (${row.method})`;
                 dateLabel = new Date(row.date).toLocaleDateString();
               }
 
-              runningBalance = runningBalance + debit - credit;
+              runningBalance = runningBalance + credit - debit;
               const isLast = idx === ledgerRows.length - 1;
 
               return (
