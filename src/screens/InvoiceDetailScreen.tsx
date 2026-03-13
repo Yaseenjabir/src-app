@@ -17,6 +17,7 @@ import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 import type { Product } from "../types/entities";
 import { customerNameFromRef, formatMoney, formatModel, statusLabel } from "../utils/format";
+import { exportInvoicePdf } from "../utils/generateInvoicePdf";
 
 export function InvoiceDetailScreen({
   onBack,
@@ -43,10 +44,13 @@ export function InvoiceDetailScreen({
   const [showAddModelPicker, setShowAddModelPicker] = useState(false);
   const [addDraftProductId, setAddDraftProductId] = useState("");
   const [addDraftQuantity, setAddDraftQuantity] = useState("1");
+  const [addDraftBoxQty, setAddDraftBoxQty] = useState("");
   const [addLineItems, setAddLineItems] = useState<
-    Array<{ productId: string; quantity: string }>
+    Array<{ productId: string; quantity: string; boxQty?: string }>
   >([]);
   const [isAppending, setIsAppending] = useState(false);
+
+  const [isExporting, setIsExporting] = useState(false);
 
   // Discount editing
   const [isEditingDiscount, setIsEditingDiscount] = useState(false);
@@ -102,7 +106,7 @@ export function InvoiceDetailScreen({
       addLineItems.map((row) => {
         const product = products.find((p) => p._id === row.productId);
         const qty = Math.max(parseInt(row.quantity || "0", 10) || 0, 0);
-        return { ...row, product, qty, lineTotal: (product?.price ?? 0) * qty };
+        return { ...row, product, qty, boxQty: row.boxQty, lineTotal: (product?.price ?? 0) * qty };
       }),
     [addLineItems, products],
   );
@@ -113,11 +117,12 @@ export function InvoiceDetailScreen({
     if (!addDraftProductId || addDraftQty <= 0) return;
     setAddLineItems((prev) => [
       ...prev,
-      { productId: addDraftProductId, quantity: String(addDraftQty) },
+      { productId: addDraftProductId, quantity: String(addDraftQty), boxQty: addDraftBoxQty.trim() || undefined },
     ]);
     setAddDraftProductId("");
     setAddItemQuery("");
     setAddDraftQuantity("1");
+    setAddDraftBoxQty("");
     setAddSelectedItemName("");
     setShowAddItemSuggestions(false);
     setShowAddModelPicker(false);
@@ -134,6 +139,7 @@ export function InvoiceDetailScreen({
           productId: r.product!._id,
           quantity: r.qty,
           unitPriceSnapshot: r.product!.price,
+          boxQty: r.boxQty ? parseInt(r.boxQty, 10) : undefined,
         })),
       );
       setIsAddItemsOpen(false);
@@ -145,6 +151,19 @@ export function InvoiceDetailScreen({
       showToast(msg, "error");
     } finally {
       setIsAppending(false);
+    }
+  }
+
+  async function handleExportPdf() {
+    if (!invoice) return;
+    setIsExporting(true);
+    try {
+      await exportInvoicePdf(invoice);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast(msg, "error");
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -389,6 +408,17 @@ export function InvoiceDetailScreen({
                 </View>
               </>
             ) : null}
+
+            {/* Export PDF */}
+            <View style={{ height: 1, backgroundColor: "rgba(128,128,128,0.18)", marginTop: 14, marginBottom: 10 }} />
+            <TouchableOpacity
+              style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" }}
+              onPress={() => void handleExportPdf()}
+              disabled={isExporting}
+            >
+              <Ionicons name="document-text-outline" size={14} color="#9090aa" />
+              <Text style={styles.itemSub}>{isExporting ? "Generating..." : "Export PDF"}</Text>
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.sec}>LINE ITEMS</Text>
@@ -407,7 +437,7 @@ export function InvoiceDetailScreen({
                       {item.product_name_snapshot}
                     </Text>
                     <Text style={styles.itemSub}>
-                      {item.quantity} × {formatMoney(item.unit_price_snapshot)}
+                      {item.quantity} × {formatMoney(item.unit_price_snapshot)}{item.box_qty != null ? ` · ${item.box_qty} boxes` : ""}
                     </Text>
                   </View>
                   <Text style={styles.amount}>
@@ -543,6 +573,17 @@ export function InvoiceDetailScreen({
                     </View>
                   </View>
                   <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>BOX QTY</Text>
+                    <TextInput
+                      keyboardType="number-pad"
+                      value={addDraftBoxQty}
+                      onChangeText={(v) => setAddDraftBoxQty(v.replace(/[^0-9]/g, ""))}
+                      style={[styles.qtyInput, { flex: 1 }]}
+                      placeholder="0"
+                      placeholderTextColor="#9aa3b2"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.formLabel}>TOTAL</Text>
                     <View style={styles.formInputBox}>
                       <Text style={styles.formValue}>
@@ -575,7 +616,7 @@ export function InvoiceDetailScreen({
                           : "Unknown"}
                       </Text>
                       <Text style={styles.itemSub}>
-                        {row.qty} × {formatMoney(row.product?.price ?? 0)}
+                        {row.qty} × {formatMoney(row.product?.price ?? 0)}{row.boxQty ? ` · ${row.boxQty} boxes` : ""}
                       </Text>
                     </View>
                     <Text style={[styles.amount, { marginRight: 8 }]}>
@@ -623,6 +664,7 @@ export function InvoiceDetailScreen({
                       setAddItemQuery("");
                       setAddDraftProductId("");
                       setAddDraftQuantity("1");
+                      setAddDraftBoxQty("");
                       setAddSelectedItemName("");
                       setShowAddItemSuggestions(false);
                       setShowAddModelPicker(false);

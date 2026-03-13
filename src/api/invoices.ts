@@ -18,6 +18,7 @@ export type CreateInvoicePayload = {
     productId: string;
     quantity: number;
     unitPriceSnapshot?: number;
+    boxQty?: number;
   }>;
 };
 
@@ -35,6 +36,7 @@ export type InvoiceItemSnapshot = {
   unit_price_snapshot: number;
   quantity: number;
   line_total: number;
+  box_qty?: number;
 };
 
 export type InvoiceDetail = Invoice & {
@@ -170,7 +172,7 @@ export function addInvoicePaymentApi(
 export function appendInvoiceItemsApi(
   token: string,
   invoiceId: string,
-  items: Array<{ productId: string; quantity: number; unitPriceSnapshot?: number }>,
+  items: Array<{ productId: string; quantity: number; unitPriceSnapshot?: number; boxQty?: number }>,
 ) {
   return apiRequest<InvoiceDetail>(`/invoices/${invoiceId}/items`, {
     method: "POST",

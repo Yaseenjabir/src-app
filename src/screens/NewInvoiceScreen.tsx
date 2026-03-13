@@ -16,6 +16,7 @@ import { formatMoney, formatModel } from "../utils/format";
 type LineItem = {
   productId: string;
   quantity: string;
+  boxQty?: string;
 };
 
 export function NewInvoiceScreen({
@@ -45,6 +46,7 @@ export function NewInvoiceScreen({
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
   const [notes, setNotes] = useState("");
+  const [draftBoxQty, setDraftBoxQty] = useState("");
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [draftProductId, setDraftProductId] = useState("");
   const [draftQuantity, setDraftQuantity] = useState("1");
@@ -163,11 +165,12 @@ export function NewInvoiceScreen({
 
     setLineItems((prev) => [
       ...prev,
-      { productId: draftProductId, quantity: String(qty) },
+      { productId: draftProductId, quantity: String(qty), boxQty: draftBoxQty.trim() || undefined },
     ]);
     setDraftProductId("");
     setProductQuery("");
     setDraftQuantity("1");
+    setDraftBoxQty("");
     setSelectedItemName("");
     setShowItemSuggestions(false);
     setShowModelPicker(false);
@@ -244,6 +247,7 @@ export function NewInvoiceScreen({
           productId: row.product!._id,
           quantity: row.qty,
           unitPriceSnapshot: row.unitPrice,
+          boxQty: row.boxQty ? parseInt(row.boxQty, 10) : undefined,
         })),
       });
 
@@ -436,6 +440,17 @@ export function NewInvoiceScreen({
                 </TouchableOpacity>
               </View>
             </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>BOX QTY</Text>
+              <TextInput
+                keyboardType="number-pad"
+                value={draftBoxQty}
+                onChangeText={(v) => setDraftBoxQty(v.replace(/[^0-9]/g, ""))}
+                style={[styles.qtyInput, { flex: 1 }]}
+                placeholder="0"
+                placeholderTextColor="#9aa3b2"
+              />
+            </View>
           </View>
 
           <View style={styles.formRow2}>
@@ -489,7 +504,7 @@ export function NewInvoiceScreen({
                     : "Unknown Product"}
                 </Text>
                 <Text style={styles.itemSub}>
-                  {row.qty} × {formatMoney(row.unitPrice)}
+                  {row.qty} × {formatMoney(row.unitPrice)}{row.boxQty ? ` · ${row.boxQty} boxes` : ""}
                 </Text>
               </View>
 
