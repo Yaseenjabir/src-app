@@ -374,6 +374,20 @@ export function createAppStyles(mode: ThemeMode) {
       fontWeight: "700",
     },
     noBorder: { borderBottomWidth: 0 },
+    dateSeparator: {
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      backgroundColor: c.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: c.border,
+    },
+    dateSeparatorText: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: c.muted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
     chip: {
       backgroundColor: c.surface,
       borderColor: c.border,

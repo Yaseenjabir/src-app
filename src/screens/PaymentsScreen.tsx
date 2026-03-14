@@ -55,6 +55,19 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     });
   }, [items, searchQuery]);
 
+  const groupedByDate = useMemo(() => {
+    const map = new Map<string, LedgerPayment[]>();
+    for (const p of filteredItems) {
+      const label = new Date(p.payment_date).toLocaleDateString();
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(p);
+    }
+    return Array.from(map.entries()).map(([dateLabel, dateItems]) => ({
+      dateLabel,
+      dateItems,
+    }));
+  }, [filteredItems]);
+
   return (
     <>
       <AppHeader />
@@ -122,38 +135,42 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
 
         {!isLoading &&
           !error &&
-          filteredItems.map((payment, idx) => {
-            const customerRef =
-              typeof payment.customer_id === "string"
-                ? undefined
-                : payment.customer_id;
-            const customerName =
-              customerRef?.shop_name ||
-              customerRef?.name ||
-              "Customer";
-
-            return (
-              <View
-                key={payment._id}
-                style={[
-                  styles.listItem,
-                  idx === filteredItems.length - 1 && styles.noBorder,
-                ]}
-              >
-                <View style={styles.itemMain}>
-                  <Text style={styles.itemTitle}>{customerName}</Text>
-                  <Text style={styles.itemSub}>
-                    {new Date(payment.payment_date).toLocaleDateString()} ·{" "}
-                    {payment.method}
-                  </Text>
-                </View>
-                <View style={styles.itemRight}>
-                  <Text style={styles.amountSuccess}>
-                    {`+ ${formatMoney(payment.amount)}`}
-                  </Text>
-                </View>
-              </View>
-            );
+          groupedByDate.flatMap(({ dateLabel, dateItems }, groupIdx) => {
+            const isLastGroup = groupIdx === groupedByDate.length - 1;
+            return [
+              <View key={`sep-${dateLabel}`} style={styles.dateSeparator}>
+                <Text style={styles.dateSeparatorText}>{dateLabel}</Text>
+              </View>,
+              ...dateItems.map((payment, idx) => {
+                const customerRef =
+                  typeof payment.customer_id === "string"
+                    ? undefined
+                    : payment.customer_id;
+                const customerName =
+                  customerRef?.shop_name || customerRef?.name || "Customer";
+                return (
+                  <View
+                    key={payment._id}
+                    style={[
+                      styles.listItem,
+                      isLastGroup &&
+                        idx === dateItems.length - 1 &&
+                        styles.noBorder,
+                    ]}
+                  >
+                    <View style={styles.itemMain}>
+                      <Text style={styles.itemTitle}>{customerName}</Text>
+                      <Text style={styles.itemSub}>{payment.method}</Text>
+                    </View>
+                    <View style={styles.itemRight}>
+                      <Text style={styles.amountSuccess}>
+                        {`+ ${formatMoney(payment.amount)}`}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }),
+            ];
           })}
       </Card>
     </>

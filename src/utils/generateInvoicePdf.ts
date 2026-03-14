@@ -1,56 +1,9 @@
-import { Asset } from "expo-asset";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import type { InvoiceDetail } from "../api/invoices";
 import { customerNameFromRef, formatMoney } from "./format";
-
-async function assetToBase64(moduleId: number): Promise<string | null> {
-  try {
-    const asset = Asset.fromModule(moduleId);
-
-    // Extracts the asset from the APK bundle and sets localUri.
-    // Wrapped separately so a failure here doesn't skip Strategy 1.
-    try {
-      await asset.downloadAsync();
-    } catch {
-      // continue — localUri might still be set from a prior call
-    }
-
-    // Strategy 1: read from localUri (reliable in production APK builds)
-    if (asset.localUri) {
-      try {
-        const uri = asset.localUri.startsWith("file://")
-          ? asset.localUri
-          : `file://${asset.localUri}`;
-        const b64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        return `data:image/png;base64,${b64}`;
-      } catch {
-        // fall through to Strategy 2
-      }
-    }
-
-    // Strategy 2: download asset.uri to a temp file (works in Expo Go where
-    // asset.uri is an HTTP Metro URL). In APK builds asset.uri is asset:/ which
-    // FileSystem.downloadAsync cannot handle — wrapped so it doesn't propagate.
-    try {
-      const tempPath = `${FileSystem.cacheDirectory}logo_${moduleId}.png`;
-      await FileSystem.downloadAsync(asset.uri, tempPath);
-      const b64 = await FileSystem.readAsStringAsync(tempPath, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      return `data:image/png;base64,${b64}`;
-    } catch {
-      // fall through
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
+import { LOGO1_BASE64, LOGO2_BASE64 } from "./pdfLogoAssets";
 
 function getCustomerName(ref: InvoiceDetail["customer_id"]): string {
   if (!ref || typeof ref === "string") return "—";
@@ -426,12 +379,8 @@ function buildHtml(
 }
 
 export async function exportInvoicePdf(invoice: InvoiceDetail): Promise<void> {
-  const [logo1, logo2] = await Promise.all([
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    assetToBase64(require("../../assets/logo.png") as number),
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    assetToBase64(require("../../assets/logo2.png") as number),
-  ]);
+  const logo1: string | null = LOGO1_BASE64;
+  const logo2: string | null = LOGO2_BASE64;
 
   const html = buildHtml(invoice, logo1, logo2);
 

@@ -59,6 +59,19 @@ export function InvoicesScreen({
     });
   }, [items, searchQuery]);
 
+  const groupedByDate = useMemo(() => {
+    const map = new Map<string, Invoice[]>();
+    for (const inv of filteredItems) {
+      const label = new Date(inv.invoice_date).toLocaleDateString();
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(inv);
+    }
+    return Array.from(map.entries()).map(([dateLabel, dateItems]) => ({
+      dateLabel,
+      dateItems,
+    }));
+  }, [filteredItems]);
+
   useEffect(() => {
     const load = async () => {
       if (!token) return;
@@ -163,31 +176,41 @@ export function InvoicesScreen({
 
         {!isLoading &&
           !error &&
-          filteredItems.map((inv, idx) => (
-            <TouchableOpacity
-              key={inv._id}
-              style={[
-                styles.listItem,
-                idx === filteredItems.length - 1 && styles.noBorder,
-              ]}
-              onPress={() => onOpenInvoice(inv._id)}
-            >
-              <View style={styles.itemMain}>
-                <Text style={styles.itemTitle}>{inv.invoice_no}</Text>
-                <Text style={styles.itemSub}>
-                  {customerNameFromRef(inv.customer_id)}
-                </Text>
-              </View>
-              <View style={styles.itemRight}>
-                <Text style={styles.amount}>
-                  {formatMoney(inv.total_amount)}
-                </Text>
-                <Text style={badgeStyle(statusLabel(inv.status))}>
-                  {statusLabel(inv.status)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          groupedByDate.flatMap(({ dateLabel, dateItems }, groupIdx) => {
+            const isLastGroup = groupIdx === groupedByDate.length - 1;
+            return [
+              <View key={`sep-${dateLabel}`} style={styles.dateSeparator}>
+                <Text style={styles.dateSeparatorText}>{dateLabel}</Text>
+              </View>,
+              ...dateItems.map((inv, idx) => (
+                <TouchableOpacity
+                  key={inv._id}
+                  style={[
+                    styles.listItem,
+                    isLastGroup &&
+                      idx === dateItems.length - 1 &&
+                      styles.noBorder,
+                  ]}
+                  onPress={() => onOpenInvoice(inv._id)}
+                >
+                  <View style={styles.itemMain}>
+                    <Text style={styles.itemTitle}>{inv.invoice_no}</Text>
+                    <Text style={styles.itemSub}>
+                      {customerNameFromRef(inv.customer_id)}
+                    </Text>
+                  </View>
+                  <View style={styles.itemRight}>
+                    <Text style={styles.amount}>
+                      {formatMoney(inv.total_amount)}
+                    </Text>
+                    <Text style={badgeStyle(statusLabel(inv.status))}>
+                      {statusLabel(inv.status)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )),
+            ];
+          })}
       </Card>
     </>
   );
