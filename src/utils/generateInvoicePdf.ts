@@ -8,9 +8,16 @@ import { customerNameFromRef, formatMoney } from "./format";
 async function assetToBase64(moduleId: number): Promise<string | null> {
   try {
     const asset = Asset.fromModule(moduleId);
-    await asset.downloadAsync();
 
-    // Strategy 1: read from localUri (works in production builds)
+    // Extracts the asset from the APK bundle and sets localUri.
+    // Wrapped separately so a failure here doesn't skip Strategy 1.
+    try {
+      await asset.downloadAsync();
+    } catch {
+      // continue — localUri might still be set from a prior call
+    }
+
+    // Strategy 1: read from localUri (reliable in production APK builds)
     if (asset.localUri) {
       try {
         const uri = asset.localUri.startsWith("file://")
@@ -25,16 +32,21 @@ async function assetToBase64(moduleId: number): Promise<string | null> {
       }
     }
 
-    // Strategy 2: download asset.uri to a temp file, then read it.
-    // Works in Expo Go (asset.uri is an HTTP Metro URL) and in production
-    // APK builds (asset.uri is a local bundle path). Unlike fetch(), this
-    // handles file:// and android_asset:// URIs that fetch() can't reach.
-    const tempPath = `${FileSystem.cacheDirectory}logo_${moduleId}.png`;
-    await FileSystem.downloadAsync(asset.uri, tempPath);
-    const b64 = await FileSystem.readAsStringAsync(tempPath, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    return `data:image/png;base64,${b64}`;
+    // Strategy 2: download asset.uri to a temp file (works in Expo Go where
+    // asset.uri is an HTTP Metro URL). In APK builds asset.uri is asset:/ which
+    // FileSystem.downloadAsync cannot handle — wrapped so it doesn't propagate.
+    try {
+      const tempPath = `${FileSystem.cacheDirectory}logo_${moduleId}.png`;
+      await FileSystem.downloadAsync(asset.uri, tempPath);
+      const b64 = await FileSystem.readAsStringAsync(tempPath, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:image/png;base64,${b64}`;
+    } catch {
+      // fall through
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -43,6 +55,18 @@ async function assetToBase64(moduleId: number): Promise<string | null> {
 function getCustomerName(ref: InvoiceDetail["customer_id"]): string {
   if (!ref || typeof ref === "string") return "—";
   return ref.name || ref.shop_name || "—";
+}
+
+function modelDisplayName(sku: string | undefined): string {
+  if (!sku) return "—";
+  const prefix = sku.split("-")[0].toUpperCase();
+  switch (prefix) {
+    case "AS": return "A Series";
+    case "KS": return "K Series";
+    case "RS": return "R Series";
+    case "US": return "Unique Series";
+    default:   return sku;
+  }
 }
 
 function buildHtml(
@@ -70,7 +94,8 @@ function buildHtml(
       (item, i) => `
         <tr class="${i % 2 === 1 ? "row-alt" : ""}">
           <td class="center">${i + 1}</td>
-          <td>${item.product_name_snapshot}${item.sku_snapshot ? ` <span class="sku">&mdash; ${item.sku_snapshot}</span>` : ""}</td>
+          <td>${item.product_name_snapshot}</td>
+          <td>${modelDisplayName(item.sku_snapshot)}</td>
           <td class="center">${item.box_qty != null ? item.box_qty : "—"}</td>
           <td class="center">${item.quantity}</td>
           <td class="right">${formatMoney(item.unit_price_snapshot)}</td>
@@ -83,7 +108,7 @@ function buildHtml(
     discount > 0
       ? `<tr class="sum-row">
           <td class="center">${itemCount + 2}</td>
-          <td colspan="4" class="sum-label-left">Discount</td>
+          <td colspan="5" class="sum-label-left">Discount</td>
           <td class="right red bold">&minus; ${formatMoney(discount)}</td>
         </tr>`
       : "";
@@ -91,11 +116,11 @@ function buildHtml(
   const paymentRows =
     paidAmount > 0
       ? `<tr class="sum-row">
-          <td colspan="4" class="sum-label">Paid</td>
+          <td colspan="5" class="sum-label">Paid</td>
           <td class="right green bold">${formatMoney(paidAmount)}</td>
         </tr>
         <tr class="sum-row">
-          <td colspan="4" class="sum-label">Remaining</td>
+          <td colspan="5" class="sum-label">Remaining</td>
           <td class="right bold ${invoice.remaining_amount > 0 ? "red" : "green"}">${formatMoney(invoice.remaining_amount)}</td>
         </tr>`
       : "";
@@ -342,9 +367,10 @@ function buildHtml(
     <table>
       <thead>
         <tr>
-          <th class="center" style="width:34px">No.</th>
-          <th>Item / Model</th>
-          <th class="center" style="width:44px">Boxes</th>
+          <th class="center" style="width:34px">S.No</th>
+          <th>Item</th>
+          <th>Model</th>
+          <th class="center" style="width:54px">Box Qty</th>
           <th class="center" style="width:44px">Qty</th>
           <th class="right"  style="width:108px">Unit Price</th>
           <th class="right"  style="width:108px">Amount</th>
@@ -354,10 +380,10 @@ function buildHtml(
         ${itemRows}
       </tbody>
       <tbody>
-        <tr><td colspan="6" style="padding:0; border:none; height:6px;"></td></tr>
+        <tr><td colspan="7" style="padding:0; border:none; height:6px;"></td></tr>
         <tr class="sum-row sum-row-divider">
           <td class="center">${itemCount + 1}</td>
-          <td colspan="4" class="sum-label-left">List Total</td>
+          <td colspan="5" class="sum-label-left">List Total</td>
           <td class="right bold">${formatMoney(subtotal)}</td>
         </tr>
         ${discountRow}
