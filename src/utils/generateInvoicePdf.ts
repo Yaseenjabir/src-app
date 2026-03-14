@@ -25,16 +25,16 @@ async function assetToBase64(moduleId: number): Promise<string | null> {
       }
     }
 
-    // Strategy 2: fetch the asset URI (works in Expo Go dev mode where
-    // asset.uri is an http://... URL served by Metro)
-    const response = await fetch(asset.uri);
-    const arrayBuffer = await response.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return `data:image/png;base64,${btoa(binary)}`;
+    // Strategy 2: download asset.uri to a temp file, then read it.
+    // Works in Expo Go (asset.uri is an HTTP Metro URL) and in production
+    // APK builds (asset.uri is a local bundle path). Unlike fetch(), this
+    // handles file:// and android_asset:// URIs that fetch() can't reach.
+    const tempPath = `${FileSystem.cacheDirectory}logo_${moduleId}.png`;
+    await FileSystem.downloadAsync(asset.uri, tempPath);
+    const b64 = await FileSystem.readAsStringAsync(tempPath, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return `data:image/png;base64,${b64}`;
   } catch {
     return null;
   }
@@ -63,14 +63,16 @@ function buildHtml(
   const discount = invoice.discount ?? 0;
   const paidAmount = invoice.paid_amount ?? 0;
 
+  const itemCount = (invoice.items ?? []).length;
+
   const itemRows = (invoice.items ?? [])
     .map(
       (item, i) => `
         <tr class="${i % 2 === 1 ? "row-alt" : ""}">
           <td class="center">${i + 1}</td>
           <td>${item.product_name_snapshot}${item.sku_snapshot ? ` <span class="sku">&mdash; ${item.sku_snapshot}</span>` : ""}</td>
-          <td class="center">${item.quantity}</td>
           <td class="center">${item.box_qty != null ? item.box_qty : "—"}</td>
+          <td class="center">${item.quantity}</td>
           <td class="right">${formatMoney(item.unit_price_snapshot)}</td>
           <td class="right bold">${formatMoney(item.line_total)}</td>
         </tr>`,
@@ -80,7 +82,8 @@ function buildHtml(
   const discountRow =
     discount > 0
       ? `<tr class="sum-row">
-          <td colspan="5" class="sum-label">Discount</td>
+          <td class="center">${itemCount + 2}</td>
+          <td colspan="4" class="sum-label-left">Discount</td>
           <td class="right red bold">&minus; ${formatMoney(discount)}</td>
         </tr>`
       : "";
@@ -223,9 +226,16 @@ function buildHtml(
   .bold { font-weight: 700; }
 
   /* ─── Summary section ─── */
-  .sum-row td { border: none; padding: 4px 10px; }
+  .sum-row td { border: none; padding: 8px 10px; }
+  .sum-row-divider td { border-bottom: 1px solid #c5cae9; }
   .sum-label {
     text-align: right;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5c6bc0;
+  }
+  .sum-label-left {
+    text-align: left;
     font-size: 11px;
     font-weight: 600;
     color: #5c6bc0;
@@ -334,8 +344,8 @@ function buildHtml(
         <tr>
           <th class="center" style="width:34px">No.</th>
           <th>Item / Model</th>
-          <th class="center" style="width:44px">Qty</th>
           <th class="center" style="width:44px">Boxes</th>
+          <th class="center" style="width:44px">Qty</th>
           <th class="right"  style="width:108px">Unit Price</th>
           <th class="right"  style="width:108px">Amount</th>
         </tr>
@@ -345,8 +355,9 @@ function buildHtml(
       </tbody>
       <tbody>
         <tr><td colspan="6" style="padding:0; border:none; height:6px;"></td></tr>
-        <tr class="sum-row">
-          <td colspan="5" class="sum-label">List Total</td>
+        <tr class="sum-row sum-row-divider">
+          <td class="center">${itemCount + 1}</td>
+          <td colspan="4" class="sum-label-left">List Total</td>
           <td class="right bold">${formatMoney(subtotal)}</td>
         </tr>
         ${discountRow}
@@ -401,7 +412,10 @@ export async function exportInvoicePdf(invoice: InvoiceDetail): Promise<void> {
   const { uri } = await Print.printToFileAsync({ html, base64: false });
 
   // Rename to a meaningful filename before sharing
-  const customerName = getCustomerName(invoice.customer_id).replace(/[^a-zA-Z0-9]/g, "_");
+  const customerName = getCustomerName(invoice.customer_id).replace(
+    /[^a-zA-Z0-9]/g,
+    "_",
+  );
   const filename = `${invoice.invoice_no}_${customerName}.pdf`;
   const namedUri = `${FileSystem.cacheDirectory ?? ""}${filename}`;
   await FileSystem.moveAsync({ from: uri, to: namedUri });
