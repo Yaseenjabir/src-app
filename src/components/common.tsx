@@ -83,18 +83,6 @@ export function StatCard({
   );
 }
 
-export function Chip({ label, active }: { label: string; active?: boolean }) {
-  const { styles } = useAppTheme();
-
-  return (
-    <View style={[styles.chip, active && styles.chipActive]}>
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 export function Card({ children }: { children: ReactNode }) {
   const { styles } = useAppTheme();
   return <View style={styles.card}>{children}</View>;
@@ -106,30 +94,6 @@ export function Loader({ compact }: { compact?: boolean }) {
   return (
     <View style={[styles.loaderWrap, compact && styles.loaderWrapCompact]}>
       <ActivityIndicator size={compact ? "small" : "large"} color="#e8141c" />
-    </View>
-  );
-}
-
-export function SimpleRow({
-  title,
-  sub,
-  right,
-  noBorder,
-}: {
-  title: string;
-  sub: string;
-  right: string;
-  noBorder?: boolean;
-}) {
-  const { styles } = useAppTheme();
-
-  return (
-    <View style={[styles.listItem, noBorder && styles.noBorder]}>
-      <View style={styles.itemMain}>
-        <Text style={styles.itemTitle}>{title}</Text>
-        <Text style={styles.itemSub}>{sub}</Text>
-      </View>
-      <Text style={styles.amount}>{right}</Text>
     </View>
   );
 }

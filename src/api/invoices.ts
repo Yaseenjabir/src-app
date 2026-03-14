@@ -22,14 +22,6 @@ export type CreateInvoicePayload = {
   }>;
 };
 
-export type AddPaymentPayload = {
-  paymentDate: string;
-  amount: number;
-  method?: "CASH" | "BANK" | "OTHER";
-  reference?: string;
-  notes?: string;
-};
-
 export type InvoiceItemSnapshot = {
   product_name_snapshot: string;
   sku_snapshot?: string;
@@ -46,33 +38,6 @@ export type InvoiceDetail = Invoice & {
   discount?: number;
   notes?: string;
   items?: InvoiceItemSnapshot[];
-};
-
-export type InvoicePayment = {
-  _id: string;
-  invoice_id: string;
-  payment_date: string;
-  amount: number;
-  method: "CASH" | "BANK" | "OTHER";
-  reference?: string;
-  notes?: string;
-};
-
-export type InvoicePaymentsResponse = {
-  invoice: {
-    _id: string;
-    invoice_no: string;
-    total_amount: number;
-    paid_amount: number;
-    remaining_amount: number;
-    status: InvoiceStatus;
-  };
-  payments: InvoicePayment[];
-};
-
-export type AddInvoicePaymentResponse = {
-  payment: InvoicePayment;
-  invoice: InvoiceDetail;
 };
 
 export type UpdateInvoicePayload = {
@@ -145,31 +110,6 @@ export function deleteInvoiceApi(token: string, invoiceId: string) {
   });
 }
 
-export function listInvoicePaymentsApi(token: string, invoiceId: string) {
-  return apiRequest<InvoicePaymentsResponse>(
-    `/invoices/${invoiceId}/payments`,
-    {
-      method: "GET",
-      token,
-    },
-  );
-}
-
-export function addInvoicePaymentApi(
-  token: string,
-  invoiceId: string,
-  body: AddPaymentPayload,
-) {
-  return apiRequest<AddInvoicePaymentResponse>(
-    `/invoices/${invoiceId}/payments`,
-    {
-      method: "POST",
-      token,
-      body,
-    },
-  );
-}
-
 export function appendInvoiceItemsApi(
   token: string,
   invoiceId: string,
@@ -184,12 +124,5 @@ export function appendInvoiceItemsApi(
     method: "POST",
     token,
     body: { items },
-  });
-}
-
-export function deleteInvoicePaymentApi(token: string, paymentId: string) {
-  return apiRequest<{ message: string }>(`/invoices/payments/${paymentId}`, {
-    method: "DELETE",
-    token,
   });
 }

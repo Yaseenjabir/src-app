@@ -22,6 +22,7 @@ import { AppHeader } from "../components/AppHeader";
 import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 import type { Product } from "../types/entities";
+import { formatModel } from "../utils/format";
 
 const PRODUCT_MODELS = [
   "A_SERIES",
@@ -30,17 +31,6 @@ const PRODUCT_MODELS = [
   "UNIQUE_SERIES",
 ] as const;
 type ProductModel = (typeof PRODUCT_MODELS)[number];
-
-const MODEL_LABELS: Record<ProductModel, string> = {
-  A_SERIES: "A Series",
-  K_SERIES: "K Series",
-  R_SERIES: "R Series",
-  UNIQUE_SERIES: "Unique Series",
-};
-
-function formatModel(model: string): string {
-  return MODEL_LABELS[model as ProductModel] ?? model;
-}
 
 type ItemRow = {
   name: string;
@@ -285,31 +275,27 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
 
   const handleDeleteItem = (itemRow: ItemRow) => {
     if (!token) return;
-    Alert.alert(
-      "Delete item",
-      `Remove "${itemRow.name}" and all its models?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const productIds = (
-                Object.values(itemRow.models) as Product[]
-              ).map((p) => p._id);
-              await Promise.all(
-                productIds.map((id) => deleteProductApi(token, id)),
-              );
-              await loadProducts();
-              showToast("Item deleted.", "success");
-            } catch {
-              showToast("Unable to delete item.", "error");
-            }
-          },
+    Alert.alert("Delete item", `Remove "${itemRow.name}" and all its models?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const productIds = (Object.values(itemRow.models) as Product[]).map(
+              (p) => p._id,
+            );
+            await Promise.all(
+              productIds.map((id) => deleteProductApi(token, id)),
+            );
+            await loadProducts();
+            showToast("Item deleted.", "success");
+          } catch {
+            showToast("Unable to delete item.", "error");
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const grouped = groupByName(items);
@@ -495,7 +481,10 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
                   </Text>
                 </View>
                 {PRODUCT_MODELS.map((m) => (
-                  <View key={m} style={[localStyles.cell, { width: COL_MODEL }]}>
+                  <View
+                    key={m}
+                    style={[localStyles.cell, { width: COL_MODEL }]}
+                  >
                     <Text style={[localStyles.headerText, { color: tMuted }]}>
                       {MODEL_LABELS[m]}
                     </Text>

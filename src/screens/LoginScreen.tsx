@@ -17,8 +17,8 @@ export function LoginScreen() {
   const { styles } = useAppTheme();
   const { showToast } = useToast();
   const { login, isLoggingIn, authError } = useAuth();
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("test12345");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const submit = async () => {
     try {

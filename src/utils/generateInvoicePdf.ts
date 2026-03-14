@@ -2,7 +2,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import type { InvoiceDetail } from "../api/invoices";
-import { customerNameFromRef, formatMoney } from "./format";
+import { formatMoney } from "./format";
 import { LOGO1_BASE64, LOGO2_BASE64 } from "./pdfLogoAssets";
 
 function getCustomerName(ref: InvoiceDetail["customer_id"]): string {
@@ -63,18 +63,6 @@ function buildHtml(
           <td class="center">${itemCount + 2}</td>
           <td colspan="5" class="sum-label-left">Discount</td>
           <td class="right red bold">&minus; ${formatMoney(discount)}</td>
-        </tr>`
-      : "";
-
-  const paymentRows =
-    paidAmount > 0
-      ? `<tr class="sum-row">
-          <td colspan="5" class="sum-label">Paid</td>
-          <td class="right green bold">${formatMoney(paidAmount)}</td>
-        </tr>
-        <tr class="sum-row">
-          <td colspan="5" class="sum-label">Remaining</td>
-          <td class="right bold ${invoice.remaining_amount > 0 ? "red" : "green"}">${formatMoney(invoice.remaining_amount)}</td>
         </tr>`
       : "";
 

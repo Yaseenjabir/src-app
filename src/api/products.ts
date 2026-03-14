@@ -40,13 +40,6 @@ export function listProductsApi(
   );
 }
 
-export function getProductModelsApi(token: string) {
-  return apiRequest<{ models: string[] }>("/products/models", {
-    method: "GET",
-    token,
-  });
-}
-
 export function createProductApi(token: string, body: ProductPayload) {
   return apiRequest<Product>("/products", {
     method: "POST",

@@ -56,7 +56,6 @@ export function NewInvoiceScreen({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -146,7 +145,7 @@ export function NewInvoiceScreen({
   const subtotal = itemRows.reduce((sum, row) => sum + row.lineTotal, 0);
   const discountAmount =
     discountMode === "%"
-      ? Math.round(subtotal * (parseFloat(discountInput) || 0) / 100)
+      ? Math.round((subtotal * (parseFloat(discountInput) || 0)) / 100)
       : parseInt(discountInput || "0", 10) || 0;
   const grandTotal = Math.max(subtotal - discountAmount, 0);
 
@@ -165,7 +164,11 @@ export function NewInvoiceScreen({
 
     setLineItems((prev) => [
       ...prev,
-      { productId: draftProductId, quantity: String(qty), boxQty: draftBoxQty.trim() || undefined },
+      {
+        productId: draftProductId,
+        quantity: String(qty),
+        boxQty: draftBoxQty.trim() || undefined,
+      },
     ]);
     setDraftProductId("");
     setProductQuery("");
@@ -251,7 +254,6 @@ export function NewInvoiceScreen({
         })),
       });
 
-      setSuccessMessage("Invoice created successfully.");
       showToast("Invoice created successfully.", "success");
       onCreated?.();
     } catch (error) {
@@ -504,7 +506,8 @@ export function NewInvoiceScreen({
                     : "Unknown Product"}
                 </Text>
                 <Text style={styles.itemSub}>
-                  {row.qty} × {formatMoney(row.unitPrice)}{row.boxQty ? ` · ${row.boxQty} boxes` : ""}
+                  {row.qty} × {formatMoney(row.unitPrice)}
+                  {row.boxQty ? ` · ${row.boxQty} boxes` : ""}
                 </Text>
               </View>
 
@@ -551,10 +554,7 @@ export function NewInvoiceScreen({
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <TouchableOpacity
-              style={[
-                styles.chip,
-                discountMode === "PKR" && styles.chipActive,
-              ]}
+              style={[styles.chip, discountMode === "PKR" && styles.chipActive]}
               onPress={() => {
                 setDiscountMode("PKR");
                 setDiscountInput("");
@@ -588,9 +588,7 @@ export function NewInvoiceScreen({
             <TextInput
               style={[styles.formInput, { width: 80, marginBottom: 0 }]}
               value={discountInput}
-              onChangeText={(v) =>
-                setDiscountInput(v.replace(/[^0-9.]/g, ""))
-              }
+              onChangeText={(v) => setDiscountInput(v.replace(/[^0-9.]/g, ""))}
               keyboardType="numeric"
               placeholder={discountMode === "%" ? "0" : "0"}
               placeholderTextColor="#9aa3b2"
@@ -603,7 +601,9 @@ export function NewInvoiceScreen({
             <View style={styles.itemMain}>
               <Text style={styles.itemSub}>Discount Amount</Text>
             </View>
-            <Text style={styles.amountDanger}>− {formatMoney(discountAmount)}</Text>
+            <Text style={styles.amountDanger}>
+              − {formatMoney(discountAmount)}
+            </Text>
           </View>
         ) : null}
 
@@ -620,14 +620,6 @@ export function NewInvoiceScreen({
           {screenError}
         </Text>
       ) : null}
-      {successMessage ? (
-        <Text
-          style={[styles.badgePaid, { marginHorizontal: 20, marginTop: 10 }]}
-        >
-          {successMessage}
-        </Text>
-      ) : null}
-
       <TouchableOpacity
         style={styles.cta}
         onPress={submit}

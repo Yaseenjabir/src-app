@@ -45,7 +45,7 @@ function AppContent() {
   const [selectedLedgerCustomer, setSelectedLedgerCustomer] =
     useState<Customer | null>(null);
   const transition = useRef(new Animated.Value(1)).current;
-  const { mode, styles, toggleMode } = useAppTheme();
+  const { mode, styles } = useAppTheme();
   const { isBootstrapping, token, user } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);

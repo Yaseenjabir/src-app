@@ -48,16 +48,10 @@ export function createLedgerPaymentApi(
   customerId: string,
   body: LedgerPaymentPayload,
 ) {
-  return apiRequest<LedgerPayment>(
-    `/customers/${customerId}/ledger-payments`,
-    { method: "POST", token, body },
-  );
-}
-
-export function deleteLedgerPaymentApi(token: string, paymentId: string) {
-  return apiRequest(`/ledger-payments/${paymentId}`, {
-    method: "DELETE",
+  return apiRequest<LedgerPayment>(`/customers/${customerId}/ledger-payments`, {
+    method: "POST",
     token,
+    body,
   });
 }
 
