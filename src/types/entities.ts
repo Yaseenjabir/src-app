@@ -28,7 +28,7 @@ export type Product = {
   name: string;
   model: string;
   price: number;
-  is_active: boolean;
+  is_active?: boolean;
 };
 
 export type InvoiceStatus = "unpaid" | "partial" | "completed";

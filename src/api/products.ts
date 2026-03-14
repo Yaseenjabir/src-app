@@ -6,14 +6,12 @@ type ListProductsOptions = {
   q?: string;
   page?: number;
   limit?: number;
-  isActive?: boolean;
 };
 
 export type ProductPayload = {
   name: string;
   model: string;
   price: number;
-  is_active?: boolean;
 };
 
 export function listProductsApi(
@@ -26,9 +24,6 @@ export function listProductsApi(
 
   if (options.q?.trim()) {
     params.set("q", options.q.trim());
-  }
-  if (typeof options.isActive === "boolean") {
-    params.set("isActive", String(options.isActive));
   }
 
   return apiRequest<PaginatedResponse<Product>>(

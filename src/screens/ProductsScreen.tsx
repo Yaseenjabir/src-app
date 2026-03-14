@@ -62,7 +62,7 @@ function newRowId() {
 const COL_SR = 44;
 const COL_ITEM = 130;
 const COL_MODEL = 94;
-const COL_ACTIONS = 88;
+const COL_ACTIONS = 112;
 
 export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   const { styles, mode } = useAppTheme();
@@ -227,8 +227,8 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
         const toUpdate = formRows.filter((r) => r.productId);
         const toCreate = formRows.filter((r) => !r.productId);
 
+        await Promise.all(toDelete.map((p) => deleteProductApi(token, p._id)));
         await Promise.all([
-          ...toDelete.map((p) => deleteProductApi(token, p._id)),
           ...toUpdate.map((r) =>
             updateProductApi(token, r.productId!, {
               name: trimmedName,
@@ -486,7 +486,7 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
                     style={[localStyles.cell, { width: COL_MODEL }]}
                   >
                     <Text style={[localStyles.headerText, { color: tMuted }]}>
-                      {MODEL_LABELS[m]}
+                      {formatModel(m)}
                     </Text>
                   </View>
                 ))}

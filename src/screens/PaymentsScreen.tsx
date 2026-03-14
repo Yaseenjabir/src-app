@@ -147,7 +147,10 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
                     ? undefined
                     : payment.customer_id;
                 const customerName =
-                  customerRef?.shop_name || customerRef?.name || "Customer";
+                  customerRef?.name || customerRef?.shop_name || "Customer";
+                const customerSub = customerRef?.shop_name
+                  ? `${customerRef.shop_name} · ${payment.method}`
+                  : payment.method;
                 return (
                   <View
                     key={payment._id}
@@ -160,7 +163,7 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
                   >
                     <View style={styles.itemMain}>
                       <Text style={styles.itemTitle}>{customerName}</Text>
-                      <Text style={styles.itemSub}>{payment.method}</Text>
+                      <Text style={styles.itemSub}>{customerSub}</Text>
                     </View>
                     <View style={styles.itemRight}>
                       <Text style={styles.amountSuccess}>

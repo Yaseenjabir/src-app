@@ -27,5 +27,5 @@ export function customerNameFromRef(
   ref: string | { name?: string; shop_name?: string } | undefined,
 ): string {
   if (!ref || typeof ref === "string") return "Customer";
-  return ref.shop_name || ref.name || "Customer";
+  return ref.name || ref.shop_name || "Customer";
 }

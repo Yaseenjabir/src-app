@@ -62,7 +62,7 @@ export function NewInvoiceScreen({
       if (!token) return;
       try {
         const productsResponse = await listProductsApi(token);
-        setProducts(productsResponse.items.filter((p) => p.is_active));
+        setProducts(productsResponse.items.filter((p) => p.is_active !== false));
       } catch {
         setScreenError("Unable to load products for invoice form.");
       }
@@ -193,7 +193,6 @@ export function NewInvoiceScreen({
   const submit = async () => {
     if (!token) return;
     setScreenError(null);
-    setSuccessMessage(null);
 
     if (!selectedCustomerId && !customerQuery.trim()) {
       setScreenError(
@@ -249,7 +248,7 @@ export function NewInvoiceScreen({
         items: itemRows.map((row) => ({
           productId: row.product!._id,
           quantity: row.qty,
-          unitPriceSnapshot: row.unitPrice,
+          unitPriceSnapshot: Math.round(row.unitPrice),
           boxQty: row.boxQty ? parseInt(row.boxQty, 10) : undefined,
         })),
       });
@@ -415,7 +414,7 @@ export function NewInvoiceScreen({
           ) : null}
 
           <View style={styles.formRow3}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 2 }}>
               <Text style={styles.formLabel}>QTY</Text>
               <View style={styles.qtyControlRow}>
                 <TouchableOpacity
