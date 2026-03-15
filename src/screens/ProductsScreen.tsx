@@ -15,33 +15,26 @@ import {
   listProductsApi,
   updateProductApi,
 } from "../api/products";
+import { listProductModelsApi } from "../api/productModels";
 import { ApiError } from "../api/http";
 import { useAuth } from "../auth/AuthContext";
 import { BoxIcon, Card, Loader } from "../components/common";
 import { AppHeader } from "../components/AppHeader";
 import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
-import type { Product } from "../types/entities";
+import type { Product, ProductModel } from "../types/entities";
 import { formatModel } from "../utils/format";
-
-const PRODUCT_MODELS = [
-  "A_SERIES",
-  "K_SERIES",
-  "R_SERIES",
-  "UNIQUE_SERIES",
-] as const;
-type ProductModel = (typeof PRODUCT_MODELS)[number];
 
 type ItemRow = {
   name: string;
-  models: Partial<Record<ProductModel, Product>>;
+  models: Record<string, Product>;
 };
 
 function groupByName(products: Product[]): ItemRow[] {
-  const map = new Map<string, Partial<Record<ProductModel, Product>>>();
+  const map = new Map<string, Record<string, Product>>();
   for (const p of products) {
     if (!map.has(p.name)) map.set(p.name, {});
-    map.get(p.name)![p.model as ProductModel] = p;
+    map.get(p.name)![p.model] = p;
   }
   return Array.from(map.entries()).map(([name, models]) => ({ name, models }));
 }
@@ -64,7 +57,13 @@ const COL_ITEM = 130;
 const COL_MODEL = 94;
 const COL_ACTIONS = 112;
 
-export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
+export function ProductsScreen({
+  refreshTick = 0,
+  onManageModels,
+}: {
+  refreshTick?: number;
+  onManageModels: () => void;
+}) {
   const { styles, mode } = useAppTheme();
   const { showToast } = useToast();
   const { token } = useAuth();
@@ -77,6 +76,7 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   const tPrice = isDark ? "#00c97a" : "#0f9f5a";
 
   const [items, setItems] = useState<Product[]>([]);
+  const [availableModels, setAvailableModels] = useState<ProductModel[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItemName, setEditingItemName] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
@@ -86,13 +86,17 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const loadProducts = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!token) return;
     setIsLoading(true);
     setLoadError(null);
     try {
-      const response = await listProductsApi(token, { limit: 100 });
-      setItems(response.items);
+      const [productsRes, modelsRes] = await Promise.all([
+        listProductsApi(token, { limit: 100 }),
+        listProductModelsApi(token),
+      ]);
+      setItems(productsRes.items);
+      setAvailableModels(modelsRes.items);
     } catch {
       setLoadError("Unable to load products");
     } finally {
@@ -101,8 +105,8 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   }, [token]);
 
   useEffect(() => {
-    void loadProducts();
-  }, [refreshTick, loadProducts]);
+    void loadData();
+  }, [refreshTick, loadData]);
 
   const resetForm = () => {
     setEditingItemName(null);
@@ -110,7 +114,7 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     setFormRows([
       {
         localId: newRowId(),
-        model: PRODUCT_MODELS[0],
+        model: availableModels[0]?.label ?? "",
         price: "",
         showDropdown: false,
       },
@@ -126,22 +130,22 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   const openEditForm = (itemRow: ItemRow) => {
     setEditingItemName(itemRow.name);
     setFormName(itemRow.name);
-    const rows: ModelFormRow[] = PRODUCT_MODELS.filter(
-      (m) => itemRow.models[m],
-    ).map((m) => ({
-      localId: newRowId(),
-      productId: itemRow.models[m]!._id,
-      model: m,
-      price: String(itemRow.models[m]!.price),
-      showDropdown: false,
-    }));
+    const rows: ModelFormRow[] = Object.entries(itemRow.models).map(
+      ([m, p]) => ({
+        localId: newRowId(),
+        productId: p._id,
+        model: m,
+        price: String(p.price),
+        showDropdown: false,
+      }),
+    );
     setFormRows(
       rows.length > 0
         ? rows
         : [
             {
               localId: newRowId(),
-              model: PRODUCT_MODELS[0],
+              model: availableModels[0]?.label ?? "",
               price: "",
               showDropdown: false,
             },
@@ -153,8 +157,9 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
 
   const addModelRow = () => {
     const usedModels = formRows.map((r) => r.model);
+    const modelLabels = availableModels.map((m) => m.label);
     const nextModel =
-      PRODUCT_MODELS.find((m) => !usedModels.includes(m)) ?? PRODUCT_MODELS[0];
+      modelLabels.find((m) => !usedModels.includes(m)) ?? modelLabels[0] ?? "";
     setFormRows((prev) => [
       ...prev,
       {
@@ -259,7 +264,7 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
 
       setIsFormOpen(false);
       resetForm();
-      await loadProducts();
+      await loadData();
     } catch (e) {
       if (e instanceof ApiError) {
         setFormError(e.message);
@@ -288,7 +293,7 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
             await Promise.all(
               productIds.map((id) => deleteProductApi(token, id)),
             );
-            await loadProducts();
+            await loadData();
             showToast("Item deleted.", "success");
           } catch {
             showToast("Unable to delete item.", "error");
@@ -303,6 +308,13 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
   return (
     <>
       <AppHeader>
+        <TouchableOpacity style={styles.boxIcon} onPress={onManageModels}>
+          <Ionicons
+            name="layers-outline"
+            size={18}
+            color={mode === "dark" ? "#a0a8c0" : "#2535c8"}
+          />
+        </TouchableOpacity>
         <TouchableOpacity onPress={openCreateForm}>
           <BoxIcon label="＋" red />
         </TouchableOpacity>
@@ -368,35 +380,38 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
 
                 {row.showDropdown ? (
                   <View style={styles.inlineSuggestionsCard}>
-                    {PRODUCT_MODELS.filter(
-                      (m) =>
-                        m === row.model ||
-                        !usedModelsExcept(row.localId).includes(m),
-                    ).map((m, i, arr) => (
-                      <TouchableOpacity
-                        key={m}
-                        style={[
-                          styles.suggestionItem,
-                          i === arr.length - 1 && styles.noBorder,
-                        ]}
-                        onPress={() =>
-                          updateRow(row.localId, {
-                            model: m,
-                            showDropdown: false,
-                          })
-                        }
-                      >
-                        <Text style={styles.suggestionText}>
-                          {formatModel(m)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    {availableModels
+                      .map((m) => m.label)
+                      .filter(
+                        (m) =>
+                          m === row.model ||
+                          !usedModelsExcept(row.localId).includes(m),
+                      )
+                      .map((m, i, arr) => (
+                        <TouchableOpacity
+                          key={m}
+                          style={[
+                            styles.suggestionItem,
+                            i === arr.length - 1 && styles.noBorder,
+                          ]}
+                          onPress={() =>
+                            updateRow(row.localId, {
+                              model: m,
+                              showDropdown: false,
+                            })
+                          }
+                        >
+                          <Text style={styles.suggestionText}>
+                            {formatModel(m)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
                   </View>
                 ) : null}
               </View>
             ))}
 
-            {formRows.length < PRODUCT_MODELS.length ? (
+            {formRows.length < availableModels.length ? (
               <TouchableOpacity
                 style={[styles.removeItemBtn, localStyles.addModelBtn]}
                 onPress={addModelRow}
@@ -480,13 +495,13 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
                     Item
                   </Text>
                 </View>
-                {PRODUCT_MODELS.map((m) => (
+                {availableModels.map((m) => (
                   <View
-                    key={m}
+                    key={m.label}
                     style={[localStyles.cell, { width: COL_MODEL }]}
                   >
                     <Text style={[localStyles.headerText, { color: tMuted }]}>
-                      {formatModel(m)}
+                      {m.label}
                     </Text>
                   </View>
                 ))}
@@ -522,16 +537,16 @@ export function ProductsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
                       {itemRow.name}
                     </Text>
                   </View>
-                  {PRODUCT_MODELS.map((m) => (
+                  {availableModels.map((m) => (
                     <View
-                      key={m}
+                      key={m.label}
                       style={[localStyles.cell, { width: COL_MODEL }]}
                     >
-                      {itemRow.models[m] ? (
+                      {itemRow.models[m.label] ? (
                         <Text
                           style={[localStyles.priceText, { color: tPrice }]}
                         >
-                          {itemRow.models[m]!.price.toLocaleString()}
+                          {itemRow.models[m.label]!.price.toLocaleString()}
                         </Text>
                       ) : (
                         <Text style={[localStyles.dashText, { color: tMuted }]}>

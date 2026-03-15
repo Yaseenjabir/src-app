@@ -5,4 +5,4 @@ type MainTab =
   | "ledger"
   | "products"
   | "payments";
-export type Page = MainTab | "invDetail" | "newInvoice" | "ledgerDetail";
+export type Page = MainTab | "invDetail" | "newInvoice" | "ledgerDetail" | "productModels";

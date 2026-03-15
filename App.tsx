@@ -20,6 +20,7 @@ import { LoginScreen } from "./src/screens/LoginScreen";
 import { NewInvoiceScreen } from "./src/screens/NewInvoiceScreen";
 import { PaymentsScreen } from "./src/screens/PaymentsScreen";
 import { ProductsScreen } from "./src/screens/ProductsScreen";
+import { ProductModelsScreen } from "./src/screens/ProductModelsScreen";
 import { AppThemeProvider, useAppTheme } from "./src/theme/AppThemeContext";
 import type { Page } from "./src/types/navigation";
 import { ToastProvider } from "./src/feedback/ToastContext";
@@ -180,7 +181,15 @@ function AppContent() {
                   <PaymentsScreen refreshTick={refreshTick} />
                 )}
                 {page === "products" && (
-                  <ProductsScreen refreshTick={refreshTick} />
+                  <ProductsScreen
+                    refreshTick={refreshTick}
+                    onManageModels={() => handlePageChange("productModels")}
+                  />
+                )}
+                {page === "productModels" && (
+                  <ProductModelsScreen
+                    onBack={() => handlePageChange("products")}
+                  />
                 )}
               </ScrollView>
             </Animated.View>

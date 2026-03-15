@@ -31,6 +31,12 @@ export type Product = {
   is_active?: boolean;
 };
 
+export type ProductModel = {
+  _id: string;
+  label: string;
+  sku_prefix: string;
+};
+
 export type InvoiceStatus = "unpaid" | "partial" | "completed";
 
 export type Invoice = {

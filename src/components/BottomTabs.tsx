@@ -32,7 +32,7 @@ export function BottomTabs({
         label="Products"
         icon="cube"
         iconOutline="cube-outline"
-        active={current === "products"}
+        active={current === "products" || current === "productModels"}
         onPress={() => onGo("products")}
       />
       <Tab
