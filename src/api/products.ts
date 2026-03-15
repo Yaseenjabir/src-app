@@ -9,8 +9,9 @@ type ListProductsOptions = {
 };
 
 export type ProductPayload = {
+  type?: "direct" | "model";
   name: string;
-  model: string;
+  model?: string;
   price: number;
 };
 

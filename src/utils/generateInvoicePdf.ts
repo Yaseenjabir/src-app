@@ -14,11 +14,16 @@ function modelDisplayName(sku: string | undefined): string {
   if (!sku) return "—";
   const prefix = sku.split("-")[0].toUpperCase();
   switch (prefix) {
-    case "AS": return "A Series";
-    case "KS": return "K Series";
-    case "RS": return "R Series";
-    case "US": return "Unique Series";
-    default:   return sku;
+    case "AS":
+      return "A Series";
+    case "KS":
+      return "K Series";
+    case "RS":
+      return "R Series";
+    case "US":
+      return "Unique Series";
+    default:
+      return sku;
   }
 }
 
@@ -98,14 +103,14 @@ function buildHtml(
     border-bottom: 2px solid #eeeeee;
   }
   .logo-img {
-    width: 80px;
-    height: 80px;
+    width: 130px;
+    height: 130px;
     object-fit: contain;
     border-radius: 6px;
   }
   .logo-placeholder {
-    width: 80px;
-    height: 80px;
+    width: 130px;
+    height: 130px;
     background: #f5f5f5;
     border-radius: 6px;
     display: flex;

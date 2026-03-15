@@ -667,10 +667,22 @@ export function InvoiceDetailScreen({
                             styles.noBorder,
                         ]}
                         onPress={() => {
+                          const matching = products.filter(
+                            (p) => p.name === name,
+                          );
+                          const directProduct = matching.find(
+                            (p) => p.type === "direct",
+                          );
                           setAddSelectedItemName(name);
                           setAddItemQuery(name);
                           setShowAddItemSuggestions(false);
-                          setShowAddModelPicker(true);
+                          if (directProduct) {
+                            setAddDraftProductId(directProduct._id);
+                            setShowAddModelPicker(false);
+                          } else {
+                            setAddDraftProductId("");
+                            setShowAddModelPicker(true);
+                          }
                         }}
                       >
                         <Text style={styles.suggestionText}>{name}</Text>
@@ -698,7 +710,7 @@ export function InvoiceDetailScreen({
                           }}
                         >
                           <Text style={styles.suggestionText}>
-                            {formatModel(p.model)}
+                            {formatModel(p.model ?? "")}
                           </Text>
                           <Text style={styles.amount}>
                             {formatMoney(p.price)}
@@ -794,7 +806,9 @@ export function InvoiceDetailScreen({
                     <View style={styles.itemMain}>
                       <Text style={styles.itemTitle}>
                         {row.product
-                          ? `${row.product.name} — ${formatModel(row.product.model)}`
+                          ? row.product.model
+                            ? `${row.product.name} — ${formatModel(row.product.model)}`
+                            : row.product.name
                           : "Unknown"}
                       </Text>
                       <Text style={styles.itemSub}>

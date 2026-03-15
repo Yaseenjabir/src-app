@@ -34,7 +34,7 @@ function groupByName(products: Product[]): ItemRow[] {
   const map = new Map<string, Record<string, Product>>();
   for (const p of products) {
     if (!map.has(p.name)) map.set(p.name, {});
-    map.get(p.name)![p.model] = p;
+    map.get(p.name)![p.model!] = p;
   }
   return Array.from(map.entries()).map(([name, models]) => ({ name, models }));
 }
@@ -82,6 +82,9 @@ export function ProductsScreen({
   const [formName, setFormName] = useState("");
   const [formRows, setFormRows] = useState<ModelFormRow[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+  const [editingDirectId, setEditingDirectId] = useState<string | null>(null);
+  const [formType, setFormType] = useState<"direct" | "model">("model");
+  const [formDirectPrice, setFormDirectPrice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -110,7 +113,10 @@ export function ProductsScreen({
 
   const resetForm = () => {
     setEditingItemName(null);
+    setEditingDirectId(null);
+    setFormType("model");
     setFormName("");
+    setFormDirectPrice("");
     setFormRows([
       {
         localId: newRowId(),
@@ -155,6 +161,17 @@ export function ProductsScreen({
     setIsFormOpen(true);
   };
 
+  const openEditDirectForm = (product: Product) => {
+    setEditingItemName(null);
+    setEditingDirectId(product._id);
+    setFormType("direct");
+    setFormName(product.name);
+    setFormDirectPrice(String(product.price));
+    setFormRows([]);
+    setFormError(null);
+    setIsFormOpen(true);
+  };
+
   const addModelRow = () => {
     const usedModels = formRows.map((r) => r.model);
     const modelLabels = availableModels.map((m) => m.label);
@@ -193,6 +210,14 @@ export function ProductsScreen({
       setFormError("Item name must be at least 2 characters.");
       return false;
     }
+    if (formType === "direct") {
+      const parsedPrice = parseInt(formDirectPrice || "0", 10);
+      if (!Number.isInteger(parsedPrice) || parsedPrice < 0) {
+        setFormError("Price must be a non-negative whole number.");
+        return false;
+      }
+      return true;
+    }
     if (formRows.length === 0) {
       setFormError("At least one model is required.");
       return false;
@@ -223,7 +248,23 @@ export function ProductsScreen({
     const trimmedName = formName.trim().toUpperCase();
     setIsSaving(true);
     try {
-      if (editingItemName) {
+      if (formType === "direct") {
+        const price = parseInt(formDirectPrice || "0", 10);
+        if (editingDirectId) {
+          await updateProductApi(token, editingDirectId, {
+            name: trimmedName,
+            price,
+          });
+          showToast("Product updated.", "success");
+        } else {
+          await createProductApi(token, {
+            type: "direct",
+            name: trimmedName,
+            price,
+          });
+          showToast("Product added.", "success");
+        }
+      } else if (editingItemName) {
         const originals = items.filter((p) => p.name === editingItemName);
         const formRowIds = new Set(
           formRows.filter((r) => r.productId).map((r) => r.productId!),
@@ -242,6 +283,7 @@ export function ProductsScreen({
           ),
           ...toCreate.map((r) =>
             createProductApi(token, {
+              type: "model",
               name: trimmedName,
               model: r.model,
               price: parseInt(r.price || "0", 10),
@@ -253,6 +295,7 @@ export function ProductsScreen({
         await Promise.all(
           formRows.map((r) =>
             createProductApi(token, {
+              type: "model",
               name: trimmedName,
               model: r.model,
               price: parseInt(r.price || "0", 10),
@@ -303,7 +346,29 @@ export function ProductsScreen({
     ]);
   };
 
-  const grouped = groupByName(items);
+  const handleDeleteDirect = (product: Product) => {
+    if (!token) return;
+    Alert.alert("Delete product", `Remove "${product.name}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteProductApi(token, product._id);
+            await loadData();
+            showToast("Product deleted.", "success");
+          } catch {
+            showToast("Unable to delete product.", "error");
+          }
+        },
+      },
+    ]);
+  };
+
+  const directProducts = items.filter((p) => p.type === "direct");
+  const modelProducts = items.filter((p) => p.type !== "direct");
+  const grouped = groupByName(modelProducts);
 
   return (
     <>
@@ -324,8 +389,51 @@ export function ProductsScreen({
         <Card>
           <View style={styles.formRow}>
             <Text style={styles.itemTitle}>
-              {editingItemName ? "Edit Product" : "Add Product"}
+              {editingItemName || editingDirectId ? "Edit Product" : "Add Product"}
             </Text>
+
+            {!editingItemName && !editingDirectId ? (
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.customerSecondaryBtn,
+                    formType === "direct" && {
+                      borderColor: "#e8141c",
+                      backgroundColor: "#ffeaea",
+                    },
+                  ]}
+                  onPress={() => setFormType("direct")}
+                >
+                  <Text
+                    style={[
+                      styles.seeAll,
+                      formType === "direct" && { color: "#e8141c" },
+                    ]}
+                  >
+                    Direct
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.customerSecondaryBtn,
+                    formType === "model" && {
+                      borderColor: "#2535c8",
+                      backgroundColor: "#eaedff",
+                    },
+                  ]}
+                  onPress={() => setFormType("model")}
+                >
+                  <Text
+                    style={[
+                      styles.seeAll,
+                      formType === "model" && { color: "#2535c8" },
+                    ]}
+                  >
+                    With Models
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             <Text style={styles.formLabel}>Item Name *</Text>
             <TextInput
@@ -337,7 +445,27 @@ export function ProductsScreen({
               autoCapitalize="characters"
             />
 
-            <Text style={[styles.formLabel, { marginTop: 16 }]}>Models *</Text>
+            {formType === "direct" ? (
+              <>
+                <Text style={[styles.formLabel, { marginTop: 16 }]}>
+                  Price (PKR) *
+                </Text>
+                <TextInput
+                  value={formDirectPrice}
+                  onChangeText={(v) =>
+                    setFormDirectPrice(v.replace(/[^0-9]/g, ""))
+                  }
+                  style={styles.formInput}
+                  placeholder="0"
+                  placeholderTextColor="#9aa3b2"
+                  keyboardType="number-pad"
+                />
+              </>
+            ) : (
+              <>
+                <Text style={[styles.formLabel, { marginTop: 16 }]}>
+                  Models *
+                </Text>
 
             {formRows.map((row) => (
               <View key={row.localId}>
@@ -422,6 +550,8 @@ export function ProductsScreen({
                 </Text>
               </TouchableOpacity>
             ) : null}
+              </>
+            )}
 
             {formError ? (
               <Text style={styles.loginError}>{formError}</Text>
@@ -446,7 +576,7 @@ export function ProductsScreen({
                 <Text style={styles.customerPrimaryBtnText}>
                   {isSaving
                     ? "Saving..."
-                    : editingItemName
+                    : editingItemName || editingDirectId
                       ? "Update"
                       : "Create"}
                 </Text>
@@ -456,85 +586,53 @@ export function ProductsScreen({
         </Card>
       ) : null}
 
-      <Card>
-        {isLoading ? <Loader /> : null}
+      {isLoading ? (
+        <Card>
+          <Loader />
+        </Card>
+      ) : null}
 
-        {!isLoading && loadError ? (
+      {!isLoading && loadError ? (
+        <Card>
           <View style={styles.listItem}>
             <Text style={styles.badgeUnpaid}>{loadError}</Text>
           </View>
-        ) : null}
+        </Card>
+      ) : null}
 
-        {!isLoading && !loadError && grouped.length === 0 ? (
+      {!isLoading && !loadError && directProducts.length === 0 && grouped.length === 0 ? (
+        <Card>
           <View style={styles.listItem}>
             <Text style={styles.itemSub}>No products found.</Text>
           </View>
-        ) : null}
+        </Card>
+      ) : null}
 
-        {!isLoading && !loadError && grouped.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View>
-              {/* Header */}
-              <View
-                style={[
-                  localStyles.tableRow,
-                  {
-                    backgroundColor: tHeaderBg,
-                    borderBottomColor: tBorder,
-                    borderBottomWidth: 1,
-                  },
-                ]}
-              >
-                <View style={[localStyles.cell, { width: COL_SR }]}>
-                  <Text style={[localStyles.headerText, { color: tMuted }]}>
-                    #
-                  </Text>
-                </View>
-                <View style={[localStyles.cell, { width: COL_ITEM }]}>
-                  <Text style={[localStyles.headerText, { color: tMuted }]}>
-                    Item
-                  </Text>
-                </View>
-                {availableModels.map((m) => (
-                  <View
-                    key={m.label}
-                    style={[localStyles.cell, { width: COL_MODEL }]}
-                  >
-                    <Text style={[localStyles.headerText, { color: tMuted }]}>
-                      {m.label}
-                    </Text>
-                  </View>
-                ))}
-                <View style={[localStyles.cell, { width: COL_ACTIONS }]}>
-                  <Text style={[localStyles.headerText, { color: tMuted }]}>
-                    Actions
-                  </Text>
-                </View>
-              </View>
-
-              {/* Data rows */}
-              {grouped.map((itemRow, index) => (
+      {!isLoading && !loadError && grouped.length > 0 ? (
+        <>
+          <Text style={styles.sec}>MODEL-BASED PRODUCTS</Text>
+          <Card>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View>
+                {/* Header */}
                 <View
-                  key={itemRow.name}
                   style={[
                     localStyles.tableRow,
                     {
+                      backgroundColor: tHeaderBg,
                       borderBottomColor: tBorder,
-                      borderBottomWidth: index === grouped.length - 1 ? 0 : 1,
+                      borderBottomWidth: 1,
                     },
                   ]}
                 >
                   <View style={[localStyles.cell, { width: COL_SR }]}>
-                    <Text style={[localStyles.indexText, { color: tMuted }]}>
-                      {index + 1}
+                    <Text style={[localStyles.headerText, { color: tMuted }]}>
+                      #
                     </Text>
                   </View>
                   <View style={[localStyles.cell, { width: COL_ITEM }]}>
-                    <Text
-                      style={[localStyles.itemNameText, { color: tText }]}
-                      numberOfLines={2}
-                    >
-                      {itemRow.name}
+                    <Text style={[localStyles.headerText, { color: tMuted }]}>
+                      Item
                     </Text>
                   </View>
                   {availableModels.map((m) => (
@@ -542,49 +640,175 @@ export function ProductsScreen({
                       key={m.label}
                       style={[localStyles.cell, { width: COL_MODEL }]}
                     >
-                      {itemRow.models[m.label] ? (
-                        <Text
-                          style={[localStyles.priceText, { color: tPrice }]}
-                        >
-                          {itemRow.models[m.label]!.price.toLocaleString()}
-                        </Text>
-                      ) : (
-                        <Text style={[localStyles.dashText, { color: tMuted }]}>
-                          —
-                        </Text>
-                      )}
+                      <Text style={[localStyles.headerText, { color: tMuted }]}>
+                        {m.label}
+                      </Text>
                     </View>
                   ))}
                   <View style={[localStyles.cell, { width: COL_ACTIONS }]}>
-                    <View style={styles.customerRowActions}>
-                      <TouchableOpacity
-                        style={styles.customerIconBtn}
-                        onPress={() => openEditForm(itemRow)}
-                      >
-                        <Ionicons
-                          name="create-outline"
-                          size={15}
-                          color="#2535c8"
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.customerIconBtnDanger}
-                        onPress={() => handleDeleteItem(itemRow)}
-                      >
-                        <Ionicons
-                          name="trash-outline"
-                          size={15}
-                          color="#e8141c"
-                        />
-                      </TouchableOpacity>
-                    </View>
+                    <Text style={[localStyles.headerText, { color: tMuted }]}>
+                      Actions
+                    </Text>
                   </View>
                 </View>
-              ))}
+
+                {/* Data rows */}
+                {grouped.map((itemRow, index) => (
+                  <View
+                    key={itemRow.name}
+                    style={[
+                      localStyles.tableRow,
+                      {
+                        borderBottomColor: tBorder,
+                        borderBottomWidth: index === grouped.length - 1 ? 0 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={[localStyles.cell, { width: COL_SR }]}>
+                      <Text style={[localStyles.indexText, { color: tMuted }]}>
+                        {index + 1}
+                      </Text>
+                    </View>
+                    <View style={[localStyles.cell, { width: COL_ITEM }]}>
+                      <Text
+                        style={[localStyles.itemNameText, { color: tText }]}
+                        numberOfLines={2}
+                      >
+                        {itemRow.name}
+                      </Text>
+                    </View>
+                    {availableModels.map((m) => (
+                      <View
+                        key={m.label}
+                        style={[localStyles.cell, { width: COL_MODEL }]}
+                      >
+                        {itemRow.models[m.label] ? (
+                          <Text
+                            style={[localStyles.priceText, { color: tPrice }]}
+                          >
+                            {itemRow.models[m.label]!.price.toLocaleString()}
+                          </Text>
+                        ) : (
+                          <Text
+                            style={[localStyles.dashText, { color: tMuted }]}
+                          >
+                            —
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+                    <View style={[localStyles.cell, { width: COL_ACTIONS }]}>
+                      <View style={styles.customerRowActions}>
+                        <TouchableOpacity
+                          style={styles.customerIconBtn}
+                          onPress={() => openEditForm(itemRow)}
+                        >
+                          <Ionicons
+                            name="create-outline"
+                            size={15}
+                            color="#2535c8"
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.customerIconBtnDanger}
+                          onPress={() => handleDeleteItem(itemRow)}
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={15}
+                            color="#e8141c"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          </Card>
+        </>
+      ) : null}
+
+      {!isLoading && !loadError && directProducts.length > 0 ? (
+        <>
+          <Text style={styles.sec}>DIRECT PRODUCTS</Text>
+          <Card>
+            {/* Header */}
+            <View
+              style={[
+                localStyles.tableRow,
+                {
+                  backgroundColor: tHeaderBg,
+                  borderBottomColor: tBorder,
+                  borderBottomWidth: 1,
+                },
+              ]}
+            >
+              <View style={[localStyles.cell, { width: COL_SR }]}>
+                <Text style={[localStyles.headerText, { color: tMuted }]}>#</Text>
+              </View>
+              <View style={[localStyles.cell, { flex: 1 }]}>
+                <Text style={[localStyles.headerText, { color: tMuted }]}>Item</Text>
+              </View>
+              <View style={[localStyles.cell, { width: COL_MODEL }]}>
+                <Text style={[localStyles.headerText, { color: tMuted }]}>Price</Text>
+              </View>
+              <View style={[localStyles.cell, { width: COL_ACTIONS }]}>
+                <Text style={[localStyles.headerText, { color: tMuted }]}>Actions</Text>
+              </View>
             </View>
-          </ScrollView>
-        ) : null}
-      </Card>
+
+            {/* Data rows */}
+            {directProducts.map((p, index) => (
+              <View
+                key={p._id}
+                style={[
+                  localStyles.tableRow,
+                  {
+                    borderBottomColor: tBorder,
+                    borderBottomWidth: index === directProducts.length - 1 ? 0 : 1,
+                  },
+                ]}
+              >
+                <View style={[localStyles.cell, { width: COL_SR }]}>
+                  <Text style={[localStyles.indexText, { color: tMuted }]}>
+                    {index + 1}
+                  </Text>
+                </View>
+                <View style={[localStyles.cell, { flex: 1 }]}>
+                  <Text
+                    style={[localStyles.itemNameText, { color: tText }]}
+                    numberOfLines={2}
+                  >
+                    {p.name}
+                  </Text>
+                </View>
+                <View style={[localStyles.cell, { width: COL_MODEL }]}>
+                  <Text style={[localStyles.priceText, { color: tPrice }]}>
+                    {p.price.toLocaleString()}
+                  </Text>
+                </View>
+                <View style={[localStyles.cell, { width: COL_ACTIONS }]}>
+                  <View style={styles.customerRowActions}>
+                    <TouchableOpacity
+                      style={styles.customerIconBtn}
+                      onPress={() => openEditDirectForm(p)}
+                    >
+                      <Ionicons name="create-outline" size={15} color="#2535c8" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.customerIconBtnDanger}
+                      onPress={() => handleDeleteDirect(p)}
+                    >
+                      <Ionicons name="trash-outline" size={15} color="#e8141c" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </Card>
+        </>
+      ) : null}
     </>
   );
 }

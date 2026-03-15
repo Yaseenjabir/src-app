@@ -365,11 +365,22 @@ export function NewInvoiceScreen({
                     idx === itemNameSuggestions.length - 1 && styles.noBorder,
                   ]}
                   onPress={() => {
+                    const matching = products.filter(
+                      (p) => p.name === itemName,
+                    );
+                    const directProduct = matching.find(
+                      (p) => p.type === "direct",
+                    );
                     setSelectedItemName(itemName);
                     setProductQuery(itemName);
                     setShowItemSuggestions(false);
-                    setShowModelPicker(true);
-                    setDraftProductId("");
+                    if (directProduct) {
+                      setDraftProductId(directProduct._id);
+                      setShowModelPicker(false);
+                    } else {
+                      setDraftProductId("");
+                      setShowModelPicker(true);
+                    }
                   }}
                 >
                   <Text style={styles.suggestionText}>{itemName}</Text>
@@ -402,7 +413,7 @@ export function NewInvoiceScreen({
                     }}
                   >
                     <Text style={styles.suggestionText}>
-                      {formatModel(product.model)}
+                      {formatModel(product.model ?? "")}
                     </Text>
                     <Text style={styles.amount}>
                       {formatMoney(product.price)}
@@ -501,7 +512,9 @@ export function NewInvoiceScreen({
               <View style={styles.itemMain}>
                 <Text style={styles.itemTitle}>
                   {row.product
-                    ? `${row.product.name} — ${formatModel(row.product.model)}`
+                    ? row.product.model
+                      ? `${row.product.name} — ${formatModel(row.product.model)}`
+                      : row.product.name
                     : "Unknown Product"}
                 </Text>
                 <Text style={styles.itemSub}>
