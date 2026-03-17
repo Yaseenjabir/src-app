@@ -189,7 +189,7 @@ export function LedgerDetailScreen({
       setIsObFormOpen(false);
       setObInput("");
       await load();
-      showToast("Opening balance set.", "success");
+      showToast("Opening balance updated.", "success");
     } catch {
       showToast("Failed to set opening balance.", "error");
     } finally {
@@ -266,15 +266,18 @@ export function LedgerDetailScreen({
       </View>
 
       {/* Opening balance section */}
-      {!isLoading && customer && !customer.opening_balance_set ? (
+      {!isLoading && customer ? (
         <View style={{ marginHorizontal: 20, marginBottom: 12 }}>
           {!isObFormOpen ? (
             <TouchableOpacity
               style={[styles.customerSecondaryBtn, { alignSelf: "flex-start" }]}
-              onPress={() => setIsObFormOpen(true)}
+              onPress={() => {
+                setObInput(customer.opening_balance_set ? String(customer.opening_balance ?? "") : "");
+                setIsObFormOpen(true);
+              }}
             >
               <Text style={[styles.itemTitle, { fontSize: 12 }]}>
-                + Set Opening Balance
+                {customer.opening_balance_set ? "Edit Opening Balance" : "+ Set Opening Balance"}
               </Text>
             </TouchableOpacity>
           ) : (
