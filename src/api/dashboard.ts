@@ -48,3 +48,17 @@ export function getDashboardSummaryApi(token: string) {
     token,
   });
 }
+
+export type LedgerSummaryResponse = {
+  total_receivable: number;
+  total_paid: number;
+  total_outstanding: number;
+  customers_with_balance: number;
+};
+
+export function getLedgerSummaryApi(token: string) {
+  return apiRequest<LedgerSummaryResponse>("/summary/ledger", {
+    method: "GET",
+    token,
+  });
+}

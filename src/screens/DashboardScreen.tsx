@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import {
   getDashboardSummaryApi,
+  getLedgerSummaryApi,
   type DashboardSummaryResponse,
+  type LedgerSummaryResponse,
 } from "../api/dashboard";
 import { useAuth } from "../auth/AuthContext";
 import { AppHeader } from "../components/AppHeader";
@@ -38,6 +40,12 @@ export function DashboardScreen({
   const { showToast } = useToast();
   const [summary, setSummary] =
     useState<DashboardSummaryResponse>(EMPTY_SUMMARY);
+  const [ledger, setLedger] = useState<LedgerSummaryResponse>({
+    total_receivable: 0,
+    total_paid: 0,
+    total_outstanding: 0,
+    customers_with_balance: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,8 +57,12 @@ export function DashboardScreen({
       setError(null);
 
       try {
-        const response = await getDashboardSummaryApi(token);
+        const [response, ledgerResponse] = await Promise.all([
+          getDashboardSummaryApi(token),
+          getLedgerSummaryApi(token),
+        ]);
         setSummary(response);
+        setLedger(ledgerResponse);
       } catch {
         setError("Unable to load dashboard summary");
         showToast("Unable to load dashboard summary.", "error");
@@ -88,12 +100,6 @@ export function DashboardScreen({
     return "Good evening 👋";
   }, []);
 
-  const topOverdueName = summary.top_overdue_customer
-    ? summary.top_overdue_customer.shop_name ||
-      summary.top_overdue_customer.customer_name ||
-      "Customer"
-    : null;
-
   return (
     <>
       <AppHeader />
@@ -117,39 +123,29 @@ export function DashboardScreen({
       <View style={styles.grid2}>
         <StatCard
           label="Receivable"
-          value={formatMoney(summary.kpis.receivable)}
-          sub={`${summary.kpis.overdue_customers} overdue customers`}
+          value={formatMoney(ledger.total_receivable)}
+          sub={`${ledger.customers_with_balance} customers owing`}
           color="#e8141c"
         />
         <StatCard
-          label="Collected"
+          label={`Collected (${periodText})`}
           value={formatMoney(summary.kpis.collected)}
-          sub={`${periodText} total`}
+          sub="this month"
           color="#00c97a"
         />
         <StatCard
-          label="Partial"
-          value={String(summary.kpis.partial_count)}
-          sub="invoices"
+          label="Customers Owing"
+          value={String(ledger.customers_with_balance)}
+          sub="have balance due"
           color="#ffb020"
         />
         <StatCard
-          label="Overdue"
-          value={formatMoney(summary.kpis.overdue_amount)}
-          sub={`${summary.kpis.overdue_customers} customers`}
-          color="#ff4d6a"
+          label="Total Collected"
+          value={formatMoney(ledger.total_paid)}
+          sub="all-time payments"
+          color="#00c97a"
         />
       </View>
-
-      {topOverdueName ? (
-        <View style={styles.alert}>
-          <Text style={styles.alertTitle}>{topOverdueName} overdue</Text>
-          <Text style={styles.alertSub}>
-            {formatMoney(summary.top_overdue_customer?.overdue_amount ?? 0)} ·{" "}
-            {summary.overdue_days}+ days
-          </Text>
-        </View>
-      ) : null}
 
       <SectionTitle
         title="Recent Invoices"
