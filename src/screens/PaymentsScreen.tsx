@@ -28,11 +28,20 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await listLedgerPaymentsApi(token, {
-          method: activeFilter === "ALL" ? undefined : activeFilter,
-          limit: 100,
-        });
-        setItems(res.items);
+        const allPayments: LedgerPayment[] = [];
+        let page = 1;
+        let totalPages = 1;
+        while (page <= totalPages) {
+          const res = await listLedgerPaymentsApi(token, {
+            method: activeFilter === "ALL" ? undefined : activeFilter,
+            page,
+            limit: 100,
+          });
+          allPayments.push(...res.items);
+          totalPages = res.pagination.totalPages;
+          page += 1;
+        }
+        setItems(allPayments);
       } catch {
         setError("Unable to load payments");
         showToast("Unable to load payments.", "error");

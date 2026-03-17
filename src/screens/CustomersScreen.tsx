@@ -64,8 +64,16 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     setError(null);
 
     try {
-      const response = await listCustomersApi(token);
-      setItems(response.items);
+      const allCustomers: Customer[] = [];
+      let page = 1;
+      let totalPages = 1;
+      while (page <= totalPages) {
+        const res = await listCustomersApi(token, { page, limit: 100 });
+        allCustomers.push(...res.items);
+        totalPages = res.pagination.totalPages;
+        page += 1;
+      }
+      setItems(allCustomers);
     } catch {
       setError("Unable to load customers");
     } finally {

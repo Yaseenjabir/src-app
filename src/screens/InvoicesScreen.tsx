@@ -80,30 +80,38 @@ export function InvoicesScreen({
 
       try {
         const [
-          listResponse,
           allResponse,
           unpaidResponse,
           partialResponse,
           paidResponse,
         ] = await Promise.all([
-          listInvoicesApi(token, {
-            status: activeFilter === "all" ? undefined : activeFilter,
-            page: 1,
-            limit: 50,
-          }),
           listInvoicesApi(token, { page: 1, limit: 1 }),
           listInvoicesApi(token, { status: "unpaid", page: 1, limit: 1 }),
           listInvoicesApi(token, { status: "partial", page: 1, limit: 1 }),
           listInvoicesApi(token, { status: "completed", page: 1, limit: 1 }),
         ]);
 
-        setItems(listResponse.items);
         setCounts({
           all: allResponse.pagination.total,
           unpaid: unpaidResponse.pagination.total,
           partial: partialResponse.pagination.total,
           completed: paidResponse.pagination.total,
         });
+
+        const allInvoices: Invoice[] = [];
+        let page = 1;
+        let totalPages = 1;
+        while (page <= totalPages) {
+          const res = await listInvoicesApi(token, {
+            status: activeFilter === "all" ? undefined : activeFilter,
+            page,
+            limit: 100,
+          });
+          allInvoices.push(...res.items);
+          totalPages = res.pagination.totalPages;
+          page += 1;
+        }
+        setItems(allInvoices);
       } catch {
         setError("Unable to load invoices");
       } finally {

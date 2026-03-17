@@ -20,27 +20,7 @@ import { useToast } from "../feedback/ToastContext";
 import { useAppTheme } from "../theme/AppThemeContext";
 import type { Customer, Invoice, LedgerPayment } from "../types/entities";
 import { formatMoney } from "../utils/format";
-
-type LedgerRow =
-  | { kind: "opening"; credit: number; ts: 0; sortId: ""; _key: string }
-  | {
-      kind: "invoice";
-      date: string;
-      invoiceNo: string;
-      credit: number;
-      ts: number;
-      sortId: string;
-      _key: string;
-    }
-  | {
-      kind: "payment";
-      date: string;
-      amount: number;
-      method: string;
-      ts: number;
-      sortId: string;
-      _key: string;
-    };
+import { exportLedgerPdf, type LedgerRow } from "../utils/generateLedgerPdf";
 
 const PAYMENT_METHODS: Array<"CASH" | "BANK" | "OTHER"> = [
   "CASH",
@@ -73,6 +53,8 @@ export function LedgerDetailScreen({
   const [isObFormOpen, setIsObFormOpen] = useState(false);
   const [obInput, setObInput] = useState("");
   const [isSavingOb, setIsSavingOb] = useState(false);
+
+  const [isExporting, setIsExporting] = useState(false);
 
   // Payment form
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
@@ -629,19 +611,43 @@ export function LedgerDetailScreen({
         </>
       ) : null}
 
-      {/* CTA */}
+      {/* CTAs */}
       {!isLoading && !error && !isPaymentFormOpen ? (
-        <TouchableOpacity
-          style={[
-            styles.cta,
-            { marginBottom: 24 },
-            totals.remaining <= 0 && styles.ctaDisabled,
-          ]}
-          onPress={() => setIsPaymentFormOpen(true)}
-          disabled={totals.remaining <= 0}
-        >
-          <Text style={styles.ctaText}>Record Payment</Text>
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity
+            style={[
+              styles.cta,
+              totals.remaining <= 0 && styles.ctaDisabled,
+            ]}
+            onPress={() => setIsPaymentFormOpen(true)}
+            disabled={totals.remaining <= 0}
+          >
+            <Text style={styles.ctaText}>Record Payment</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.cta,
+              { marginBottom: 24, backgroundColor: "#1a237e" },
+              (isExporting || ledgerRows.length === 0) && styles.ctaDisabled,
+            ]}
+            onPress={async () => {
+              if (!customer) return;
+              setIsExporting(true);
+              try {
+                await exportLedgerPdf(customer, ledgerRows, totals);
+              } finally {
+                setIsExporting(false);
+              }
+            }}
+            disabled={isExporting || ledgerRows.length === 0}
+          >
+            {isExporting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.ctaText}>Export Ledger PDF</Text>
+            )}
+          </TouchableOpacity>
+        </>
       ) : null}
     </>
   );

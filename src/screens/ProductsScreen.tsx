@@ -94,11 +94,17 @@ export function ProductsScreen({
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [productsRes, modelsRes] = await Promise.all([
-        listProductsApi(token, { limit: 100 }),
-        listProductModelsApi(token),
-      ]);
-      setItems(productsRes.items);
+      const allProducts: Product[] = [];
+      let page = 1;
+      let totalPages = 1;
+      while (page <= totalPages) {
+        const res = await listProductsApi(token, { page, limit: 100 });
+        allProducts.push(...res.items);
+        totalPages = res.pagination?.totalPages ?? 1;
+        page += 1;
+      }
+      const modelsRes = await listProductModelsApi(token);
+      setItems(allProducts);
       setAvailableModels(modelsRes.items);
     } catch {
       setLoadError("Unable to load products");

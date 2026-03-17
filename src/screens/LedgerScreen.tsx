@@ -44,12 +44,20 @@ export function LedgerScreen({
       setError(null);
 
       try {
-        const response = await listCustomersApi(token, {
-          isActive: true,
-          page: 1,
-          limit: 100,
-        });
-        setItems(response.items);
+        const allCustomers: Customer[] = [];
+        let page = 1;
+        let totalPages = 1;
+        while (page <= totalPages) {
+          const res = await listCustomersApi(token, {
+            isActive: true,
+            page,
+            limit: 100,
+          });
+          allCustomers.push(...res.items);
+          totalPages = res.pagination.totalPages;
+          page += 1;
+        }
+        setItems(allCustomers);
       } catch {
         setError("Unable to load ledger customers");
         showToast("Unable to load ledger customers.", "error");
