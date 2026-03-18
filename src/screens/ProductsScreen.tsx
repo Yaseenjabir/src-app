@@ -34,7 +34,8 @@ function groupByName(products: Product[]): ItemRow[] {
   const map = new Map<string, Record<string, Product>>();
   for (const p of products) {
     if (!map.has(p.name)) map.set(p.name, {});
-    map.get(p.name)![p.model!] = p;
+    const key = p.model?.label ?? "";
+    if (key) map.get(p.name)![key] = p;
   }
   return Array.from(map.entries()).map(([name, models]) => ({ name, models }));
 }
@@ -126,7 +127,7 @@ export function ProductsScreen({
     setFormRows([
       {
         localId: newRowId(),
-        model: availableModels[0]?.label ?? "",
+        model: availableModels[0]?._id ?? "",
         price: "",
         showDropdown: false,
       },
@@ -143,10 +144,10 @@ export function ProductsScreen({
     setEditingItemName(itemRow.name);
     setFormName(itemRow.name);
     const rows: ModelFormRow[] = Object.entries(itemRow.models).map(
-      ([m, p]) => ({
+      ([label, p]) => ({
         localId: newRowId(),
         productId: p._id,
-        model: m,
+        model: availableModels.find((m) => m.label === label)?._id ?? label,
         price: String(p.price),
         showDropdown: false,
       }),
@@ -157,7 +158,7 @@ export function ProductsScreen({
         : [
             {
               localId: newRowId(),
-              model: availableModels[0]?.label ?? "",
+              model: availableModels[0]?._id ?? "",
               price: "",
               showDropdown: false,
             },
@@ -179,10 +180,10 @@ export function ProductsScreen({
   };
 
   const addModelRow = () => {
-    const usedModels = formRows.map((r) => r.model);
-    const modelLabels = availableModels.map((m) => m.label);
+    const usedIds = formRows.map((r) => r.model);
     const nextModel =
-      modelLabels.find((m) => !usedModels.includes(m)) ?? modelLabels[0] ?? "";
+      availableModels.find((m) => !usedIds.includes(m._id))?._id ??
+      availableModels[0]?._id ?? "";
     setFormRows((prev) => [
       ...prev,
       {
@@ -231,14 +232,14 @@ export function ProductsScreen({
     const modelsSeen = new Set<string>();
     for (const row of formRows) {
       if (modelsSeen.has(row.model)) {
-        setFormError(`Duplicate model: ${formatModel(row.model)}`);
+        setFormError(`Duplicate model: ${availableModels.find((m) => m._id === row.model)?.label ?? row.model}`);
         return false;
       }
       modelsSeen.add(row.model);
       const parsedPrice = parseInt(row.price || "0", 10);
       if (!Number.isInteger(parsedPrice) || parsedPrice < 0) {
         setFormError(
-          `Price for ${formatModel(row.model)} must be a non-negative whole number.`,
+          `Price for ${availableModels.find((m) => m._id === row.model)?.label ?? row.model} must be a non-negative whole number.`,
         );
         return false;
       }
@@ -485,7 +486,7 @@ export function ProductsScreen({
                     }
                   >
                     <Text style={styles.formValue}>
-                      {formatModel(row.model)}
+                      {availableModels.find((m) => m._id === row.model)?.label ?? row.model}
                     </Text>
                   </TouchableOpacity>
 
@@ -515,28 +516,27 @@ export function ProductsScreen({
                 {row.showDropdown ? (
                   <View style={styles.inlineSuggestionsCard}>
                     {availableModels
-                      .map((m) => m.label)
                       .filter(
                         (m) =>
-                          m === row.model ||
-                          !usedModelsExcept(row.localId).includes(m),
+                          m._id === row.model ||
+                          !usedModelsExcept(row.localId).includes(m._id),
                       )
                       .map((m, i, arr) => (
                         <TouchableOpacity
-                          key={m}
+                          key={m._id}
                           style={[
                             styles.suggestionItem,
                             i === arr.length - 1 && styles.noBorder,
                           ]}
                           onPress={() =>
                             updateRow(row.localId, {
-                              model: m,
+                              model: m._id,
                               showDropdown: false,
                             })
                           }
                         >
                           <Text style={styles.suggestionText}>
-                            {formatModel(m)}
+                            {m.label}
                           </Text>
                         </TouchableOpacity>
                       ))}

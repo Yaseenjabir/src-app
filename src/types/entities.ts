@@ -27,7 +27,7 @@ export type Product = {
   sku: string;
   name: string;
   type: "direct" | "model";
-  model?: string;
+  model?: { _id: string; label: string; sku_prefix: string };
   price: number;
   is_active?: boolean;
 };
