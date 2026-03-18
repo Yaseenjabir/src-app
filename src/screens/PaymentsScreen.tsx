@@ -147,7 +147,7 @@ export function PaymentsScreen({ refreshTick = 0 }: { refreshTick?: number }) {
           groupedByDate.flatMap(({ dateLabel, dateItems }, groupIdx) => {
             const isLastGroup = groupIdx === groupedByDate.length - 1;
             return [
-              <View key={`sep-${dateLabel}`} style={styles.dateSeparator}>
+              <View key={`sep-${dateLabel}`} style={[styles.dateSeparator, groupIdx > 0 && { marginTop: 12 }]}>
                 <Text style={styles.dateSeparatorText}>{dateLabel}</Text>
               </View>,
               ...dateItems.map((payment, idx) => {

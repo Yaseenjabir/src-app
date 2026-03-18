@@ -710,7 +710,7 @@ export function InvoiceDetailScreen({
                           }}
                         >
                           <Text style={styles.suggestionText}>
-                            {formatModel(p.model ?? "")}
+                            {formatModel(p.model?.label ?? "")}
                           </Text>
                           <Text style={styles.amount}>
                             {formatMoney(p.price)}
@@ -807,7 +807,7 @@ export function InvoiceDetailScreen({
                       <Text style={styles.itemTitle}>
                         {row.product
                           ? row.product.model
-                            ? `${row.product.name} — ${formatModel(row.product.model)}`
+                            ? `${row.product.name} — ${formatModel(row.product.model.label)}`
                             : row.product.name
                           : "Unknown"}
                       </Text>

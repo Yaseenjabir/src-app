@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
 import {
   createCustomerApi,
-  deleteCustomerApi,
   listCustomersApi,
   updateCustomerApi,
 } from "../api/customers";
@@ -149,22 +148,22 @@ export function CustomersScreen({ refreshTick = 0 }: { refreshTick?: number }) {
     if (!token) return;
 
     Alert.alert(
-      "Delete customer",
-      `Do you want to deactivate ${customer.shop_name || customer.name}?`,
+      "Deactivate customer",
+      `Do you want to deactivate ${customer.name}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete",
+          text: "Deactivate",
           style: "destructive",
           onPress: async () => {
             try {
               setActionCustomerId(customer._id);
-              await deleteCustomerApi(token, customer._id);
+              await updateCustomerApi(token, customer._id, { is_active: false });
               await loadCustomers();
-              showToast("Customer deleted successfully.", "success");
+              showToast("Customer deactivated successfully.", "success");
             } catch (e) {
               const message =
-                e instanceof ApiError ? e.message : "Unable to delete customer";
+                e instanceof ApiError ? e.message : "Unable to deactivate customer";
               setError(message);
               showToast(message, "error");
             } finally {

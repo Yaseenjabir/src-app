@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -88,6 +89,7 @@ export function ProductsScreen({
   const [formDirectPrice, setFormDirectPrice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -337,6 +339,7 @@ export function ProductsScreen({
         style: "destructive",
         onPress: async () => {
           try {
+            setDeletingKey(itemRow.name);
             const productIds = (Object.values(itemRow.models) as Product[]).map(
               (p) => p._id,
             );
@@ -347,6 +350,8 @@ export function ProductsScreen({
             showToast("Item deleted.", "success");
           } catch {
             showToast("Unable to delete item.", "error");
+          } finally {
+            setDeletingKey(null);
           }
         },
       },
@@ -362,11 +367,14 @@ export function ProductsScreen({
         style: "destructive",
         onPress: async () => {
           try {
+            setDeletingKey(product._id);
             await deleteProductApi(token, product._id);
             await loadData();
             showToast("Product deleted.", "success");
           } catch {
             showToast("Unable to delete product.", "error");
+          } finally {
+            setDeletingKey(null);
           }
         },
       },
@@ -718,12 +726,13 @@ export function ProductsScreen({
                         <TouchableOpacity
                           style={styles.customerIconBtnDanger}
                           onPress={() => handleDeleteItem(itemRow)}
+                          disabled={deletingKey === itemRow.name}
                         >
-                          <Ionicons
-                            name="trash-outline"
-                            size={15}
-                            color="#e8141c"
-                          />
+                          {deletingKey === itemRow.name ? (
+                            <ActivityIndicator size="small" color="#e8141c" />
+                          ) : (
+                            <Ionicons name="trash-outline" size={15} color="#e8141c" />
+                          )}
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -805,8 +814,13 @@ export function ProductsScreen({
                     <TouchableOpacity
                       style={styles.customerIconBtnDanger}
                       onPress={() => handleDeleteDirect(p)}
+                      disabled={deletingKey === p._id}
                     >
-                      <Ionicons name="trash-outline" size={15} color="#e8141c" />
+                      {deletingKey === p._id ? (
+                        <ActivityIndicator size="small" color="#e8141c" />
+                      ) : (
+                        <Ionicons name="trash-outline" size={15} color="#e8141c" />
+                      )}
                     </TouchableOpacity>
                   </View>
                 </View>

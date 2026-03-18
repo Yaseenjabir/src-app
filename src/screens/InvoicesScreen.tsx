@@ -10,18 +10,15 @@ import { listInvoicesApi } from "../api/invoices";
 import { useAuth } from "../auth/AuthContext";
 import type { Page } from "../types/navigation";
 import { useAppTheme } from "../theme/AppThemeContext";
-import type { Invoice, InvoiceStatus } from "../types/entities";
+import type { Invoice } from "../types/entities";
 import { customerNameFromRef, formatMoney, statusLabel } from "../utils/format";
 import {
-  ActionPill,
   BoxIcon,
   Card,
   Loader,
   SectionTitle,
 } from "../components/common";
 import { AppHeader } from "../components/AppHeader";
-
-type InvoiceFilterKey = "all" | InvoiceStatus;
 
 export function InvoicesScreen({
   onGo,
@@ -35,13 +32,6 @@ export function InvoicesScreen({
   const { styles, badgeStyle } = useAppTheme();
   const { token } = useAuth();
   const [items, setItems] = useState<Invoice[]>([]);
-  const [activeFilter, setActiveFilter] = useState<InvoiceFilterKey>("all");
-  const [counts, setCounts] = useState<Record<InvoiceFilterKey, number>>({
-    all: 0,
-    unpaid: 0,
-    partial: 0,
-    completed: 0,
-  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,34 +69,11 @@ export function InvoicesScreen({
       setError(null);
 
       try {
-        const [
-          allResponse,
-          unpaidResponse,
-          partialResponse,
-          paidResponse,
-        ] = await Promise.all([
-          listInvoicesApi(token, { page: 1, limit: 1 }),
-          listInvoicesApi(token, { status: "unpaid", page: 1, limit: 1 }),
-          listInvoicesApi(token, { status: "partial", page: 1, limit: 1 }),
-          listInvoicesApi(token, { status: "completed", page: 1, limit: 1 }),
-        ]);
-
-        setCounts({
-          all: allResponse.pagination.total,
-          unpaid: unpaidResponse.pagination.total,
-          partial: partialResponse.pagination.total,
-          completed: paidResponse.pagination.total,
-        });
-
         const allInvoices: Invoice[] = [];
         let page = 1;
         let totalPages = 1;
         while (page <= totalPages) {
-          const res = await listInvoicesApi(token, {
-            status: activeFilter === "all" ? undefined : activeFilter,
-            page,
-            limit: 100,
-          });
+          const res = await listInvoicesApi(token, { page, limit: 100 });
           allInvoices.push(...res.items);
           totalPages = res.pagination.totalPages;
           page += 1;
@@ -120,17 +87,7 @@ export function InvoicesScreen({
     };
 
     void load();
-  }, [token, refreshTick, activeFilter]);
-
-  const filterChips: Array<{
-    key: InvoiceFilterKey;
-    label: string;
-  }> = [
-    { key: "all", label: "All" },
-    { key: "unpaid", label: "Unpaid" },
-    { key: "partial", label: "Partial" },
-    { key: "completed", label: "Paid" },
-  ];
+  }, [token, refreshTick]);
 
   return (
     <>
@@ -139,21 +96,6 @@ export function InvoicesScreen({
           <BoxIcon label="＋" red />
         </TouchableOpacity>
       </AppHeader>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.actions}
-      >
-        {filterChips.map((filter) => (
-          <ActionPill
-            key={filter.key}
-            label={`${filter.label} (${counts[filter.key] ?? 0})`}
-            active={activeFilter === filter.key}
-            onPress={() => setActiveFilter(filter.key)}
-          />
-        ))}
-      </ScrollView>
 
       <View style={styles.formSection}>
         <Text style={styles.formLabel}>Search Customer</Text>
@@ -187,7 +129,7 @@ export function InvoicesScreen({
           groupedByDate.flatMap(({ dateLabel, dateItems }, groupIdx) => {
             const isLastGroup = groupIdx === groupedByDate.length - 1;
             return [
-              <View key={`sep-${dateLabel}`} style={styles.dateSeparator}>
+              <View key={`sep-${dateLabel}`} style={[styles.dateSeparator, groupIdx > 0 && { marginTop: 12 }]}>
                 <Text style={styles.dateSeparatorText}>{dateLabel}</Text>
               </View>,
               ...dateItems.map((inv, idx) => (

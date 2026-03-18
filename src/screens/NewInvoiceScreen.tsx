@@ -61,8 +61,15 @@ export function NewInvoiceScreen({
     const loadProducts = async () => {
       if (!token) return;
       try {
-        const productsResponse = await listProductsApi(token);
-        setProducts(productsResponse.items.filter((p) => p.is_active !== false));
+        const allProducts: Product[] = [];
+        let page = 1, totalPages = 1;
+        while (page <= totalPages) {
+          const res = await listProductsApi(token, { page, limit: 100 });
+          allProducts.push(...res.items.filter((p) => p.is_active !== false));
+          totalPages = res.pagination?.totalPages ?? 1;
+          page += 1;
+        }
+        setProducts(allProducts);
       } catch {
         setScreenError("Unable to load products for invoice form.");
       }
@@ -413,7 +420,7 @@ export function NewInvoiceScreen({
                     }}
                   >
                     <Text style={styles.suggestionText}>
-                      {formatModel(product.model ?? "")}
+                      {formatModel(product.model?.label ?? "")}
                     </Text>
                     <Text style={styles.amount}>
                       {formatMoney(product.price)}
@@ -513,7 +520,7 @@ export function NewInvoiceScreen({
                 <Text style={styles.itemTitle}>
                   {row.product
                     ? row.product.model
-                      ? `${row.product.name} — ${formatModel(row.product.model)}`
+                      ? `${row.product.name} — ${formatModel(row.product.model.label)}`
                       : row.product.name
                     : "Unknown Product"}
                 </Text>
