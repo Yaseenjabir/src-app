@@ -46,6 +46,7 @@ function AppContent() {
   const [selectedLedgerCustomer, setSelectedLedgerCustomer] =
     useState<Customer | null>(null);
   const transition = useRef(new Animated.Value(1)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
   const { mode, styles } = useAppTheme();
   const { isBootstrapping, token, user } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -113,6 +114,7 @@ function AppContent() {
               }}
             >
               <ScrollView
+                ref={scrollViewRef}
                 style={styles.screen}
                 contentContainerStyle={styles.screenContent}
                 refreshControl={
@@ -184,6 +186,7 @@ function AppContent() {
                   <ProductsScreen
                     refreshTick={refreshTick}
                     onManageModels={() => handlePageChange("productModels")}
+                    onScrollToTop={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
                   />
                 )}
                 {page === "productModels" && (

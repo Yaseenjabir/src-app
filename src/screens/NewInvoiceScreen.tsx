@@ -115,7 +115,8 @@ export function NewInvoiceScreen({
     }
 
     const query = productQuery.trim().toLowerCase();
-    const uniqueNames = [...new Set(products.map((p) => p.name))];
+    const modelProducts = products.filter((p) => p.type === "model");
+    const uniqueNames = [...new Set(modelProducts.map((p) => p.name))];
     const filtered = uniqueNames.filter((n) => n.toLowerCase().includes(query));
     setItemNameSuggestions(filtered.slice(0, 20));
   }, [products, productQuery, showItemSuggestions]);
@@ -223,7 +224,8 @@ export function NewInvoiceScreen({
 
     setIsSubmitting(true);
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       let customerIdToUse = selectedCustomerId;
 
       if (!customerIdToUse) {

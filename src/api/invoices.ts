@@ -26,6 +26,7 @@ export type InvoiceItemSnapshot = {
   product_name_snapshot: string;
   sku_snapshot?: string;
   model_snapshot?: string;
+  type_snapshot?: "direct" | "model";
   unit_price_snapshot: number;
   quantity: number;
   line_total: number;

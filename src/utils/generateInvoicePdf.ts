@@ -27,6 +27,13 @@ function modelDisplayName(sku: string | undefined): string {
   }
 }
 
+function itemType(item: {
+  type_snapshot?: "direct" | "model";
+  model_snapshot?: string;
+}): "model" | "direct" {
+  return item.type_snapshot ?? (item.model_snapshot ? "model" : "direct");
+}
+
 function buildHtml(
   invoice: InvoiceDetail,
   logo1: string | null,
@@ -45,23 +52,37 @@ function buildHtml(
   const discount = invoice.discount ?? 0;
   const paidAmount = invoice.paid_amount ?? 0;
 
-  const itemCount = (invoice.items ?? []).length;
+  const allItems = invoice.items ?? [];
+  const modelItemsList = allItems.filter((i) => itemType(i) === "model");
+  const directItemsList = allItems.filter((i) => itemType(i) === "direct");
+  const twoPart = modelItemsList.length > 0 && directItemsList.length > 0;
 
-  const itemRows = (invoice.items ?? [])
-    .map(
-      (item, i) => `
+  const modelSubtotalAmt = modelItemsList.reduce((s, i) => s + i.line_total, 0);
+  const directSubtotalAmt = directItemsList.reduce((s, i) => s + i.line_total, 0);
+  const modelNet = modelSubtotalAmt - discount;
+
+  const renderRows = (
+    items: typeof allItems,
+    startIdx: number,
+  ) =>
+    items
+      .map(
+        (item, i) => `
         <tr class="${i % 2 === 1 ? "row-alt" : ""}">
-          <td class="center">${i + 1}</td>
+          <td class="center">${startIdx + i + 1}</td>
           <td>${item.product_name_snapshot}</td>
-          <td>${modelDisplayName(item.sku_snapshot)}</td>
+          <td>${itemType(item) === "direct" ? "—" : (item.model_snapshot ?? modelDisplayName(item.sku_snapshot))}</td>
           <td class="center">${item.box_qty != null ? item.box_qty : "—"}</td>
           <td class="center">${item.quantity}</td>
           <td class="right">${formatMoney(item.unit_price_snapshot)}</td>
           <td class="right bold">${formatMoney(item.line_total)}</td>
         </tr>`,
-    )
-    .join("");
+      )
+      .join("");
 
+  // Single-section (model-only or legacy)
+  const itemCount = allItems.length;
+  const itemRows = renderRows(allItems, 0);
   const discountRow =
     discount > 0
       ? `<tr class="sum-row">
@@ -70,6 +91,57 @@ function buildHtml(
           <td class="right red bold">&minus; ${formatMoney(discount)}</td>
         </tr>`
       : "";
+
+  // Two-section
+  const mCount = modelItemsList.length;
+  const dCount = directItemsList.length;
+  const modelRows = renderRows(modelItemsList, 0);
+  const netRowIdx = mCount + 1 + (discount > 0 ? 2 : 1);
+  const directRows = renderRows(directItemsList, netRowIdx);
+  const modelDiscountRow =
+    discount > 0
+      ? `<tr class="sum-row">
+          <td class="center">${mCount + 2}</td>
+          <td colspan="5" class="sum-label-left">Discount</td>
+          <td class="right red bold">&minus; ${formatMoney(discount)}</td>
+        </tr>`
+      : "";
+
+  const tableContent = twoPart
+    ? `<tbody>${modelRows}</tbody>
+       <tbody>
+         <tr><td colspan="7" style="padding:0; border:none; height:6px;"></td></tr>
+         <tr class="sum-row sum-row-divider">
+           <td class="center">${mCount + 1}</td>
+           <td colspan="5" class="sum-label-left">Subtotal</td>
+           <td class="right bold">${formatMoney(modelSubtotalAmt)}</td>
+         </tr>
+         ${modelDiscountRow}
+         <tr class="sum-row">
+           <td class="center">${netRowIdx}</td>
+           <td colspan="5" class="sum-label-left">Net</td>
+           <td class="right bold">${formatMoney(modelNet)}</td>
+         </tr>
+         ${directRows}
+         <tr><td colspan="7" style="padding:0; border:none; height:6px;"></td></tr>
+         <tr class="sum-row sum-row-divider">
+           <td class="center">${netRowIdx + dCount + 1}</td>
+           <td colspan="5" class="sum-label-left">Direct Total</td>
+           <td class="right bold">${formatMoney(directSubtotalAmt)}</td>
+         </tr>
+       </tbody>`
+    : `<tbody>${itemRows}</tbody>
+       <tbody>
+         <tr><td colspan="7" style="padding:0; border:none; height:6px;"></td></tr>
+         <tr class="sum-row sum-row-divider">
+           <td class="center">${itemCount + 1}</td>
+           <td colspan="5" class="sum-label-left">List Total</td>
+           <td class="right bold">${formatMoney(subtotal)}</td>
+         </tr>
+         ${discountRow}
+       </tbody>`;
+
+  const totalBandLabel = twoPart ? "GRAND TOTAL" : "NET TOTAL";
 
   const notesSection = invoice.notes?.trim()
     ? `<div class="notes-box"><span class="notes-label">Notes</span> ${invoice.notes.trim()}</div>`
@@ -322,24 +394,13 @@ function buildHtml(
           <th class="right"  style="width:108px">Amount</th>
         </tr>
       </thead>
-      <tbody>
-        ${itemRows}
-      </tbody>
-      <tbody>
-        <tr><td colspan="7" style="padding:0; border:none; height:6px;"></td></tr>
-        <tr class="sum-row sum-row-divider">
-          <td class="center">${itemCount + 1}</td>
-          <td colspan="5" class="sum-label-left">List Total</td>
-          <td class="right bold">${formatMoney(subtotal)}</td>
-        </tr>
-        ${discountRow}
-      </tbody>
+      ${tableContent}
     </table>
   </div>
 
-  <!-- Net Total band -->
+  <!-- Total band -->
   <div class="total-band">
-    <span class="total-label">NET TOTAL</span>
+    <span class="total-label">${totalBandLabel}</span>
     <span class="total-value">${formatMoney(invoice.total_amount)}</span>
   </div>
 

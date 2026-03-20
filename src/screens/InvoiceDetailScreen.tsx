@@ -7,6 +7,7 @@ import {
   getInvoiceByIdApi,
   updateInvoiceApi,
   type InvoiceDetail,
+  type InvoiceItemSnapshot,
 } from "../api/invoices";
 import { listProductsApi } from "../api/products";
 import { ApiError } from "../api/http";
@@ -23,6 +24,10 @@ import {
   statusLabel,
 } from "../utils/format";
 import { exportInvoicePdf } from "../utils/generateInvoicePdf";
+
+function itemType(item: InvoiceItemSnapshot): "model" | "direct" {
+  return item.type_snapshot ?? (item.model_snapshot ? "model" : "direct");
+}
 
 export function InvoiceDetailScreen({
   onBack,
@@ -85,15 +90,25 @@ export function InvoiceDetailScreen({
 
   useEffect(() => {
     if (!token) return;
-    void listProductsApi(token).then((res) =>
-      setProducts(res.items.filter((p) => p.is_active !== false)),
-    );
+    const loadAllProducts = async () => {
+      const all: Product[] = [];
+      let page = 1;
+      while (true) {
+        const res = await listProductsApi(token, { page, limit: 100 });
+        all.push(...res.items);
+        if (all.length >= res.total || res.items.length === 0) break;
+        page++;
+      }
+      setProducts(all.filter((p) => p.is_active !== false));
+    };
+    void loadAllProducts();
   }, [token]);
 
   const addItemNameSuggestions = useMemo(() => {
     if (!showAddItemSuggestions) return [];
     const q = addItemQuery.trim().toLowerCase();
-    const names = [...new Set(products.map((p) => p.name))];
+    const directProducts = products.filter((p) => p.type === "direct");
+    const names = [...new Set(directProducts.map((p) => p.name))];
     return names.filter((n) => n.toLowerCase().includes(q)).slice(0, 20);
   }, [products, addItemQuery, showAddItemSuggestions]);
 
@@ -123,6 +138,24 @@ export function InvoiceDetailScreen({
   );
 
   const addSubtotal = addItemRows.reduce((s, r) => s + r.lineTotal, 0);
+
+  const modelItems = useMemo(
+    () => (invoice?.items ?? []).filter((i) => itemType(i) === "model"),
+    [invoice?.items],
+  );
+  const directItems = useMemo(
+    () => (invoice?.items ?? []).filter((i) => itemType(i) === "direct"),
+    [invoice?.items],
+  );
+  const modelSubtotal = useMemo(
+    () => modelItems.reduce((s, i) => s + i.line_total, 0),
+    [modelItems],
+  );
+  const directSubtotal = useMemo(
+    () => directItems.reduce((s, i) => s + i.line_total, 0),
+    [directItems],
+  );
+  const hasBothTypes = modelItems.length > 0 && directItems.length > 0;
 
   function pushAddLineItem() {
     if (!addDraftProductId || addDraftQty <= 0) return;
@@ -182,7 +215,9 @@ export function InvoiceDetailScreen({
     }
   }
 
-  const subtotalForDiscount = invoice?.subtotal ?? invoice?.total_amount ?? 0;
+  const subtotalForDiscount = hasBothTypes
+    ? modelSubtotal
+    : (invoice?.subtotal ?? invoice?.total_amount ?? 0);
   const editDiscountAmount =
     discountMode === "%"
       ? Math.round(
@@ -340,7 +375,7 @@ export function InvoiceDetailScreen({
             />
 
             {/* Financial breakdown */}
-            {(invoice.discount ?? 0) > 0 || isEditingDiscount ? (
+            {(invoice.discount ?? 0) > 0 || isEditingDiscount || hasBothTypes ? (
               <View
                 style={{
                   flexDirection: "row",
@@ -348,9 +383,15 @@ export function InvoiceDetailScreen({
                   marginBottom: 6,
                 }}
               >
-                <Text style={styles.itemSub}>Subtotal</Text>
                 <Text style={styles.itemSub}>
-                  {formatMoney(invoice.subtotal ?? invoice.total_amount)}
+                  {hasBothTypes ? "Model Subtotal" : "Subtotal"}
+                </Text>
+                <Text style={styles.itemSub}>
+                  {formatMoney(
+                    hasBothTypes
+                      ? modelSubtotal
+                      : (invoice.subtotal ?? invoice.total_amount),
+                  )}
                 </Text>
               </View>
             ) : null}
@@ -491,6 +532,40 @@ export function InvoiceDetailScreen({
               />
             ) : null}
 
+            {hasBothTypes ? (
+              <>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginBottom: 6,
+                  }}
+                >
+                  <Text style={styles.itemSub}>Net (Model)</Text>
+                  <Text style={styles.itemSub}>
+                    {formatMoney(modelSubtotal - (invoice.discount ?? 0))}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    marginBottom: 10,
+                  }}
+                >
+                  <Text style={styles.itemSub}>Direct Products</Text>
+                  <Text style={styles.itemSub}>{formatMoney(directSubtotal)}</Text>
+                </View>
+                <View
+                  style={{
+                    height: 1,
+                    backgroundColor: "rgba(128,128,128,0.18)",
+                    marginBottom: 10,
+                  }}
+                />
+              </>
+            ) : null}
+
             <View
               style={{
                 flexDirection: "row",
@@ -498,7 +573,9 @@ export function InvoiceDetailScreen({
                 alignItems: "center",
               }}
             >
-              <Text style={styles.amount}>Total</Text>
+              <Text style={styles.amount}>
+                {hasBothTypes ? "Grand Total" : "Total"}
+              </Text>
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
               >
@@ -589,37 +666,73 @@ export function InvoiceDetailScreen({
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.sec}>LINE ITEMS</Text>
-          <Card>
-            {invoice.items && invoice.items.length > 0 ? (
-              invoice.items.map((item, idx) => (
-                <View
-                  key={`${item.product_name_snapshot}-${idx}`}
-                  style={[
-                    styles.listItem,
-                    idx === invoice.items!.length - 1 && styles.noBorder,
-                  ]}
-                >
-                  <View style={styles.itemMain}>
-                    <Text style={styles.itemTitle}>
-                      {item.product_name_snapshot}
-                    </Text>
-                    <Text style={styles.itemSub}>
-                      {item.quantity} × {formatMoney(item.unit_price_snapshot)}
-                      {item.box_qty != null ? ` · ${item.box_qty} boxes` : ""}
-                    </Text>
+          {modelItems.length > 0 ? (
+            <>
+              <Text style={styles.sec}>MODEL ITEMS</Text>
+              <Card>
+                {modelItems.map((item, idx) => (
+                  <View
+                    key={`model-${item.product_name_snapshot}-${idx}`}
+                    style={[
+                      styles.listItem,
+                      idx === modelItems.length - 1 && styles.noBorder,
+                    ]}
+                  >
+                    <View style={styles.itemMain}>
+                      <Text style={styles.itemTitle}>
+                        {item.product_name_snapshot}
+                        {item.model_snapshot ? ` — ${item.model_snapshot}` : ""}
+                      </Text>
+                      <Text style={styles.itemSub}>
+                        {item.quantity} × {formatMoney(item.unit_price_snapshot)}
+                        {item.box_qty != null ? ` · ${item.box_qty} boxes` : ""}
+                      </Text>
+                    </View>
+                    <Text style={styles.amount}>{formatMoney(item.line_total)}</Text>
                   </View>
-                  <Text style={styles.amount}>
-                    {formatMoney(item.line_total)}
-                  </Text>
+                ))}
+              </Card>
+            </>
+          ) : null}
+
+          {directItems.length > 0 ? (
+            <>
+              <Text style={styles.sec}>DIRECT ITEMS</Text>
+              <Card>
+                {directItems.map((item, idx) => (
+                  <View
+                    key={`direct-${item.product_name_snapshot}-${idx}`}
+                    style={[
+                      styles.listItem,
+                      idx === directItems.length - 1 && styles.noBorder,
+                    ]}
+                  >
+                    <View style={styles.itemMain}>
+                      <Text style={styles.itemTitle}>
+                        {item.product_name_snapshot}
+                      </Text>
+                      <Text style={styles.itemSub}>
+                        {item.quantity} × {formatMoney(item.unit_price_snapshot)}
+                        {item.box_qty != null ? ` · ${item.box_qty} boxes` : ""}
+                      </Text>
+                    </View>
+                    <Text style={styles.amount}>{formatMoney(item.line_total)}</Text>
+                  </View>
+                ))}
+              </Card>
+            </>
+          ) : null}
+
+          {modelItems.length === 0 && directItems.length === 0 ? (
+            <>
+              <Text style={styles.sec}>LINE ITEMS</Text>
+              <Card>
+                <View style={[styles.listItem, styles.noBorder]}>
+                  <Text style={styles.itemSub}>No line items found.</Text>
                 </View>
-              ))
-            ) : (
-              <View style={styles.listItem}>
-                <Text style={styles.itemSub}>No line items found.</Text>
-              </View>
-            )}
-          </Card>
+              </Card>
+            </>
+          ) : null}
 
           <Text style={styles.sec}>ADD ITEMS</Text>
           <Card>

@@ -62,9 +62,11 @@ const COL_ACTIONS = 112;
 export function ProductsScreen({
   refreshTick = 0,
   onManageModels,
+  onScrollToTop,
 }: {
   refreshTick?: number;
   onManageModels: () => void;
+  onScrollToTop?: () => void;
 }) {
   const { styles, mode } = useAppTheme();
   const { showToast } = useToast();
@@ -140,6 +142,7 @@ export function ProductsScreen({
   const openCreateForm = () => {
     resetForm();
     setIsFormOpen(true);
+    onScrollToTop?.();
   };
 
   const openEditForm = (itemRow: ItemRow) => {
@@ -168,6 +171,7 @@ export function ProductsScreen({
     );
     setFormError(null);
     setIsFormOpen(true);
+    onScrollToTop?.();
   };
 
   const openEditDirectForm = (product: Product) => {
@@ -179,6 +183,7 @@ export function ProductsScreen({
     setFormRows([]);
     setFormError(null);
     setIsFormOpen(true);
+    onScrollToTop?.();
   };
 
   const addModelRow = () => {
