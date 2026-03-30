@@ -56,6 +56,7 @@ function buildHtml(
   const modelItemsList = allItems.filter((i) => itemType(i) === "model");
   const directItemsList = allItems.filter((i) => itemType(i) === "direct");
   const twoPart = modelItemsList.length > 0 && directItemsList.length > 0;
+  const isDirectOnly = modelItemsList.length === 0 && directItemsList.length > 0;
 
   const modelSubtotalAmt = modelItemsList.reduce((s, i) => s + i.line_total, 0);
   const directSubtotalAmt = directItemsList.reduce((s, i) => s + i.line_total, 0);
@@ -64,6 +65,7 @@ function buildHtml(
   const renderRows = (
     items: typeof allItems,
     startIdx: number,
+    showModel = true,
   ) =>
     items
       .map(
@@ -71,7 +73,7 @@ function buildHtml(
         <tr class="${i % 2 === 1 ? "row-alt" : ""}">
           <td class="center">${startIdx + i + 1}</td>
           <td>${item.product_name_snapshot}</td>
-          <td>${itemType(item) === "direct" ? "—" : (item.model_snapshot ?? modelDisplayName(item.sku_snapshot))}</td>
+          ${showModel ? `<td>${itemType(item) === "direct" ? "—" : (item.model_snapshot ?? modelDisplayName(item.sku_snapshot))}</td>` : ""}
           <td class="center">${item.box_qty != null ? item.box_qty : "—"}</td>
           <td class="center">${item.quantity}</td>
           <td class="right">${formatMoney(item.unit_price_snapshot)}</td>
@@ -80,14 +82,16 @@ function buildHtml(
       )
       .join("");
 
-  // Single-section (model-only or legacy)
+  // Single-section (model-only, direct-only, or legacy)
   const itemCount = allItems.length;
-  const itemRows = renderRows(allItems, 0);
+  const singleCols = isDirectOnly ? 6 : 7;
+  const singleLabelCols = isDirectOnly ? 4 : 5;
+  const itemRows = renderRows(allItems, 0, !isDirectOnly);
   const discountRow =
     discount > 0
       ? `<tr class="sum-row">
           <td class="center">${itemCount + 2}</td>
-          <td colspan="5" class="sum-label-left">Discount</td>
+          <td colspan="${singleLabelCols}" class="sum-label-left">Discount</td>
           <td class="right red bold">&minus; ${formatMoney(discount)}</td>
         </tr>`
       : "";
@@ -132,10 +136,10 @@ function buildHtml(
        </tbody>`
     : `<tbody>${itemRows}</tbody>
        <tbody>
-         <tr><td colspan="7" style="padding:0; border:none; height:6px;"></td></tr>
+         <tr><td colspan="${singleCols}" style="padding:0; border:none; height:6px;"></td></tr>
          <tr class="sum-row sum-row-divider">
            <td class="center">${itemCount + 1}</td>
-           <td colspan="5" class="sum-label-left">List Total</td>
+           <td colspan="${singleLabelCols}" class="sum-label-left">List Total</td>
            <td class="right bold">${formatMoney(subtotal)}</td>
          </tr>
          ${discountRow}
@@ -387,7 +391,7 @@ function buildHtml(
         <tr>
           <th class="center" style="width:34px">S.No</th>
           <th>Item</th>
-          <th>Model</th>
+          ${!isDirectOnly ? `<th>Model</th>` : ""}
           <th class="center" style="width:54px">Box Qty</th>
           <th class="center" style="width:44px">Qty</th>
           <th class="right"  style="width:108px">Unit Price</th>

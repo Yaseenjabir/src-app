@@ -582,7 +582,7 @@ export function InvoiceDetailScreen({
                 <Text style={styles.amount}>
                   {formatMoney(invoice.total_amount)}
                 </Text>
-                {!isEditingDiscount && (invoice.discount ?? 0) === 0 ? (
+                {!isEditingDiscount && (invoice.discount ?? 0) === 0 && invoice.invoice_type !== "direct" ? (
                   <TouchableOpacity
                     style={[
                       styles.chip,

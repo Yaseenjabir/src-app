@@ -54,6 +54,8 @@ export function NewInvoiceScreen({
   const [discountInput, setDiscountInput] = useState("");
   const [discountMode, setDiscountMode] = useState<"PKR" | "%">("PKR");
 
+  const [invoiceType, setInvoiceType] = useState<"model" | "direct">("model");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [screenError, setScreenError] = useState<string | null>(null);
 
@@ -115,11 +117,14 @@ export function NewInvoiceScreen({
     }
 
     const query = productQuery.trim().toLowerCase();
-    const modelProducts = products.filter((p) => p.type === "model");
-    const uniqueNames = [...new Set(modelProducts.map((p) => p.name))];
-    const filtered = uniqueNames.filter((n) => n.toLowerCase().includes(query));
-    setItemNameSuggestions(filtered.slice(0, 20));
-  }, [products, productQuery, showItemSuggestions]);
+    const filtered = invoiceType === "direct"
+      ? products.filter((p) => p.type === "direct")
+      : products.filter((p) => p.type === "model");
+    const uniqueNames = [...new Set(filtered.map((p) => p.name))];
+    setItemNameSuggestions(
+      uniqueNames.filter((n) => n.toLowerCase().includes(query)).slice(0, 20),
+    );
+  }, [products, productQuery, showItemSuggestions, invoiceType]);
 
   const itemRows = useMemo(() => {
     return lineItems.map((row) => {
@@ -253,7 +258,8 @@ export function NewInvoiceScreen({
         customerId: customerIdToUse,
         invoiceDate: today,
         notes: notes.trim() || undefined,
-        discount: discountAmount,
+        discount: invoiceType === "direct" ? 0 : discountAmount,
+        invoiceType,
         items: itemRows.map((row) => ({
           productId: row.product!._id,
           quantity: row.qty,
@@ -339,6 +345,30 @@ export function NewInvoiceScreen({
           </Text>
         ) : null}
       </View>
+
+      <Text style={styles.sec}>INVOICE TYPE</Text>
+      <Card>
+        <View style={{ flexDirection: "row", gap: 10, padding: 4 }}>
+          <TouchableOpacity
+            style={[styles.chip, invoiceType === "model" && styles.chipActive, { flex: 1, justifyContent: "center" }]}
+            onPress={() => { setInvoiceType("model"); setLineItems([]); }}
+          >
+            <Text style={[styles.chipText, invoiceType === "model" && styles.chipTextActive]}>
+              Model Products
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.chip, invoiceType === "direct" && styles.chipActive, { flex: 1, justifyContent: "center" }]}
+            onPress={() => { setInvoiceType("direct"); setLineItems([]); }}
+          >
+            <Text style={[styles.chipText, invoiceType === "direct" && styles.chipTextActive]}>
+              Direct Products
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Card>
+
+      <View style={{ height: 10 }} />
 
       <Text style={styles.sec}>LINE ITEMS</Text>
       <Card>
@@ -568,64 +598,68 @@ export function NewInvoiceScreen({
           <Text style={styles.amount}>{formatMoney(subtotal)}</Text>
         </View>
 
-        {/* Discount row */}
-        <View style={styles.formRow}>
-          <View style={styles.itemMain}>
-            <Text style={styles.itemSub}>Discount</Text>
-          </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <TouchableOpacity
-              style={[styles.chip, discountMode === "PKR" && styles.chipActive]}
-              onPress={() => {
-                setDiscountMode("PKR");
-                setDiscountInput("");
-              }}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  discountMode === "PKR" && styles.chipTextActive,
-                ]}
-              >
-                PKR
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.chip, discountMode === "%" && styles.chipActive]}
-              onPress={() => {
-                setDiscountMode("%");
-                setDiscountInput("");
-              }}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  discountMode === "%" && styles.chipTextActive,
-                ]}
-              >
-                %
-              </Text>
-            </TouchableOpacity>
-            <TextInput
-              style={[styles.formInput, { width: 80, marginBottom: 0 }]}
-              value={discountInput}
-              onChangeText={(v) => setDiscountInput(v.replace(/[^0-9.]/g, ""))}
-              keyboardType="numeric"
-              placeholder={discountMode === "%" ? "0" : "0"}
-              placeholderTextColor="#9aa3b2"
-            />
-          </View>
-        </View>
-
-        {discountAmount > 0 ? (
-          <View style={styles.formRow}>
-            <View style={styles.itemMain}>
-              <Text style={styles.itemSub}>Discount Amount</Text>
+        {/* Discount row — model invoices only */}
+        {invoiceType === "model" ? (
+          <>
+            <View style={styles.formRow}>
+              <View style={styles.itemMain}>
+                <Text style={styles.itemSub}>Discount</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.chip, discountMode === "PKR" && styles.chipActive]}
+                  onPress={() => {
+                    setDiscountMode("PKR");
+                    setDiscountInput("");
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      discountMode === "PKR" && styles.chipTextActive,
+                    ]}
+                  >
+                    PKR
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.chip, discountMode === "%" && styles.chipActive]}
+                  onPress={() => {
+                    setDiscountMode("%");
+                    setDiscountInput("");
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      discountMode === "%" && styles.chipTextActive,
+                    ]}
+                  >
+                    %
+                  </Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={[styles.formInput, { width: 80, marginBottom: 0 }]}
+                  value={discountInput}
+                  onChangeText={(v) => setDiscountInput(v.replace(/[^0-9.]/g, ""))}
+                  keyboardType="numeric"
+                  placeholder={discountMode === "%" ? "0" : "0"}
+                  placeholderTextColor="#9aa3b2"
+                />
+              </View>
             </View>
-            <Text style={styles.amountDanger}>
-              − {formatMoney(discountAmount)}
-            </Text>
-          </View>
+
+            {discountAmount > 0 ? (
+              <View style={styles.formRow}>
+                <View style={styles.itemMain}>
+                  <Text style={styles.itemSub}>Discount Amount</Text>
+                </View>
+                <Text style={styles.amountDanger}>
+                  − {formatMoney(discountAmount)}
+                </Text>
+              </View>
+            ) : null}
+          </>
         ) : null}
 
         <View style={[styles.formRow, styles.noBorder]}>

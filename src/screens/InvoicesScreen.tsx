@@ -58,7 +58,9 @@ export function InvoicesScreen({
     }
     return Array.from(map.entries()).map(([dateLabel, dateItems]) => ({
       dateLabel,
-      dateItems,
+      dateItems: [...dateItems].sort(
+        (a, b) => parseInt(b.invoice_no, 10) - parseInt(a.invoice_no, 10),
+      ),
     }));
   }, [filteredItems]);
 

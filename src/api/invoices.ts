@@ -14,6 +14,7 @@ export type CreateInvoicePayload = {
   invoiceDate: string;
   discount?: number;
   notes?: string;
+  invoiceType?: "model" | "direct";
   items: Array<{
     productId: string;
     quantity: number;
@@ -38,6 +39,7 @@ export type InvoiceDetail = Invoice & {
   subtotal?: number;
   discount?: number;
   notes?: string;
+  invoice_type?: "model" | "direct";
   items?: InvoiceItemSnapshot[];
 };
 
